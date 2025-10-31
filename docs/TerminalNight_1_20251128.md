@@ -1,5 +1,5 @@
 ---
-presentationID: 1LuTHoZ9HsSdk67S7TS3rMKZUdQ0YWi8SpoMGJfuM05c
+presentationID: 1iuX8bJenKJ_hrm7kwxP0QJIKWO8ubebc7_dZsmh1Kw0
 title: ncursesの後継者たち
 ---
 
@@ -45,7 +45,7 @@ title: ncursesの後継者たち
 
 まぁこれくらいはAIに聞けば出てくる
 
-<!-- {"layout": "2 列（タイトルあり）"} -->
+<!-- {"layout": "Two Content"} -->
 
 ---
 
@@ -59,13 +59,13 @@ title: ncursesの後継者たち
 
 # C言語で？今さら？
 
-<!-- {"layout": "タイトルのみ"} -->
+<!-- {"layout": "Title Only"} -->
 
 ---
 
 # Zigでしょ！
 
-<!-- {"layout": "タイトルのみ"} -->
+<!-- {"layout": "Title Only"} -->
 
 ---
 
@@ -78,4 +78,12 @@ title: ncursesの後継者たち
 
 ---
 
+# やるなら今しかねぇ～
 
+* [Zettui](https://github.com/kazto/zettui)
+
+---
+
+# 俺たちの戦いはこれからだ
+
+<!-- {"layout": "Title Only"} -->
