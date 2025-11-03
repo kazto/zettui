@@ -11,12 +11,12 @@ Tasks derived from `docs/specification.md` to track coverage and implementation 
 
 ## DOM Module
 ### Core
-- [ ] Implement `Node` tagged union APIs for layout (`computeRequirement`, `setBox`), validation (`check`), rendering (`render`), and selection (`select`, `getSelectedContent`).
-- [ ] Maintain `Requirement` struct fields for minimum sizes, flex factors, and focus metadata.
+- [x] Implement `Node` tagged union APIs for layout (`computeRequirement`, `setBox`), validation (`check`), rendering (`render`), and selection (`select`, `getSelectedContent`).
+- [x] Maintain `Requirement` struct fields for minimum sizes, flex factors, and focus metadata.
 - [ ] Keep `Selection` records wired into focus, cursor, and accessibility flows.
 
 ### Layout & Widgets
-- [ ] Provide element builders in `elements.zig` (`text`, `paragraph*`, `window`, `gauge*`, `spinner`, `graph`, `canvas`, border and separator helpers).
+- [ ] Provide element builders in `elements.zig` (`text`, `paragraph*`, `window`, `gauge*`, `spinner`, `graph`, `canvas`, border and separator helpers`).
 - [ ] Support container combinators (`hbox`, `vbox`, `dbox`, `flexbox`) plus flow utilities (`flex*`, `filler`, `size`, `frame`, `focus`, cursor modifiers) returning fully configured `Node` values.
 
 ### Styling
@@ -30,7 +30,7 @@ Tasks derived from `docs/specification.md` to track coverage and implementation 
 
 ## Component Module
 ### Component Base & Composition
-- [ ] Uphold `ComponentBase` struct hooks for render, event handling, animation, child management, and focus navigation.
+- [x] Uphold `ComponentBase` struct hooks for render, event handling, animation, child management, and focus navigation.
 - [ ] Maintain `Component` factory helpers and `ComponentDecorator` wrappers for composition patterns.
 
 ### Widgets
@@ -49,15 +49,15 @@ Tasks derived from `docs/specification.md` to track coverage and implementation 
 
 ## Screen Module
 ### Rendering Surface
-- [ ] Maintain `screen/image.zig` and `screen/screen.zig` pixel grid rendering, printing, clearing, cursor management, hyperlink registration, and shader hooks.
+- [x] Maintain `screen/image.zig` and `screen/screen.zig` pixel grid rendering, printing, clearing, cursor management, hyperlink registration, and shader hooks.
 - [ ] Keep `Box` geometric utilities consistent with layout logic.
-- [ ] Ensure `Pixel` structs store style flags, hyperlink identifiers, and UTF-8 graphemes accurately.
+- [x] Ensure `Pixel` structs store style flags, hyperlink identifiers, and UTF-8 graphemes accurately.
 
 ### Colors
-- [ ] Support `color.zig` palette (1/16/256) and true-color creation (RGB/HSV/RGBA/HSVA) with blending/interpolation helpers.
+- [x] Support `color.zig` palette (1/16/256) and true-color creation (RGB/HSV/RGBA/HSVA) with blending/interpolation helpers.
 - [ ] Expose `TerminalInfo` metadata for palette support, dimensions, and fallbacks.
 
 ### Strings & Utilities
-- [ ] Preserve UTF-8 helpers for conversion, width computation, glyph splitting, and cell-to-glyph mapping between `[]const u8` buffers.
+- [x] Preserve UTF-8 helpers for conversion, width computation, glyph splitting, and cell-to-glyph mapping between `[]const u8` buffers.
 - [ ] Maintain legacy wide-string APIs under `dom/screen/legacy.zig` gated by build options.
 - [ ] Ensure utility helpers (`AutoReset`, `Ref`/`ConstRef`, `ConstStringRef`, `ConstStringListRef`, `Receiver`/`Sender`, Windows macro guards) remain available and documented.
