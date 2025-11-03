@@ -65,9 +65,9 @@ pub const Node = union(enum) {
     pub fn render(self: Node, ctx: *RenderContext) !void {
         switch (self) {
             .text => |text_node| {
-                try std.io.getStdOut().writeAll(text_node.content);
+                try std.fs.File.stdout().writeAll(text_node.content);
             },
-            .custom => |renderer| try renderer.callback(renderer.user_data, ctx),
+            .custom => |renderer| try renderer.callback.*(renderer.user_data, ctx),
             .container => |container_node| try container_node.render(ctx),
             else => {},
         }
@@ -94,7 +94,7 @@ pub const Text = struct {
 };
 
 pub const CustomRenderer = struct {
-    callback: fn (user_data: ?*anyopaque, ctx: *RenderContext) anyerror!void,
+    callback: *const fn (user_data: ?*anyopaque, ctx: *RenderContext) anyerror!void,
     user_data: ?*anyopaque = null,
 };
 
@@ -106,7 +106,7 @@ pub const Container = struct {
         var req = Requirement{};
         for (self.children) |child| {
             const child_req = child.computeRequirement();
-            req.min_width = std.math.max(req.min_width, child_req.min_width);
+            req.min_width = @max(req.min_width, child_req.min_width);
             req.min_height += child_req.min_height;
         }
         return req;
@@ -130,3 +130,41 @@ pub const Container = struct {
         }
     }
 };
+
+test "text node requirement uses content length" {
+    const node = Node{ .text = .{ .content = "hello" } };
+    const req = node.computeRequirement();
+    try std.testing.expectEqual(@as(usize, 5), req.min_width);
+    try std.testing.expectEqual(@as(usize, 1), req.min_height);
+}
+
+test "container aggregates child requirements" {
+    const node = Node{
+        .container = .{
+            .children = &[_]Node{
+                .{ .text = .{ .content = "abc" } },
+                .{ .text = .{ .content = "toolong" } },
+            },
+        },
+    };
+    const req = node.computeRequirement();
+    try std.testing.expectEqual(@as(usize, 7), req.min_width);
+    try std.testing.expectEqual(@as(usize, 2), req.min_height);
+}
+
+test "setBox updates container dimensions" {
+    var node = Node{ .container = .{ .children = &[_]Node{} } };
+    const expected_box = Box{ .origin_x = 1, .origin_y = 2, .width = 10, .height = 3 };
+    node.setBox(expected_box);
+    const observed_box = switch (node) {
+        .container => |container| container.box,
+        else => unreachable,
+    };
+    try std.testing.expectEqual(expected_box, observed_box);
+}
+
+test "getSelectedContent returns textual content" {
+    const text_node = Node{ .text = .{ .content = "zettui" } };
+    const selected = try text_node.getSelectedContent(std.testing.allocator);
+    try std.testing.expectEqualStrings("zettui", selected);
+}

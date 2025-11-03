@@ -27,3 +27,10 @@ pub const ColorInfo = struct {
     supports_true_color: bool = false,
     palette_size: usize = 16,
 };
+
+test "blend mixes RGB channels linearly" {
+    const red = Color.rgb(255, 0, 0);
+    const blue = Color.rgb(0, 0, 255);
+    const purple = Color.blend(red, blue, 0.5);
+    try std.testing.expectEqual(Color.rgb(127, 0, 127).value, purple.value);
+}

@@ -1,8 +1,8 @@
 const events = @import("events.zig");
 
-pub const RenderFn = fn (*ComponentBase) anyerror!void;
-pub const EventFn = fn (*ComponentBase, events.Event) bool;
-pub const AnimationFn = fn (*ComponentBase, f32) void;
+pub const RenderFn = *const fn (*ComponentBase) anyerror!void;
+pub const EventFn = *const fn (*ComponentBase, events.Event) bool;
+pub const AnimationFn = *const fn (*ComponentBase, f32) void;
 
 pub const ComponentBase = struct {
     text_cache: []const u8 = "",

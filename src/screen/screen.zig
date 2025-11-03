@@ -26,7 +26,7 @@ pub const Screen = struct {
         for (text, 0..) |char_byte, idx| {
             const offset = y * width + x + idx;
             if (offset >= self.image.pixels.len) break;
-            self.image.pixels[offset].glyph = &[1]u8{char_byte};
+            self.image.pixels[offset].glyph = image_mod.glyphFromByte(char_byte);
         }
     }
 
@@ -42,3 +42,25 @@ pub const Screen = struct {
         }
     }
 };
+
+test "drawString writes glyphs and present flushes rows" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    var screen = try Screen.init(allocator, 4, 2);
+    defer allocator.free(screen.image.pixels);
+
+    screen.clear(.{
+        .glyph = " ",
+        .fg = 0x000000,
+        .bg = 0x000000,
+    });
+    screen.drawString(1, 0, "hi");
+
+    var buffer = std.array_list.Managed(u8).init(allocator);
+    defer buffer.deinit();
+    try screen.present(buffer.writer());
+
+    try std.testing.expectEqualStrings(" hi \n    \n", buffer.items);
+}

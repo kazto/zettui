@@ -49,11 +49,14 @@ pub fn container(allocator: std.mem.Allocator, children: []const base.Component)
 }
 
 fn buttonRender(self: *base.ComponentBase) anyerror!void {
+    const stdout = std.fs.File.stdout();
     if (self.text_cache.len > 0) {
-        try std.io.getStdOut().writer().print("[{s}]", .{self.text_cache});
-        return;
+        try stdout.writeAll("[");
+        try stdout.writeAll(self.text_cache);
+        try stdout.writeAll("]");
+    } else {
+        try stdout.writeAll("[button]");
     }
-    try std.io.getStdOut().writeAll("[button]");
 }
 
 fn buttonEvent(self: *base.ComponentBase, event: events.Event) bool {
@@ -63,15 +66,17 @@ fn buttonEvent(self: *base.ComponentBase, event: events.Event) bool {
 }
 
 fn labelRender(self: *base.ComponentBase) anyerror!void {
+    const stdout = std.fs.File.stdout();
     if (self.text_cache.len > 0) {
-        try std.io.getStdOut().writeAll(self.text_cache);
+        try stdout.writeAll(self.text_cache);
     }
 }
 
 fn containerRender(self: *base.ComponentBase) anyerror!void {
+    const stdout = std.fs.File.stdout();
     for (self.children) |child| {
         try child.render();
-        try std.io.getStdOut().writeAll("\n");
+        try stdout.writeAll("\n");
     }
 }
 
@@ -88,4 +93,41 @@ fn containerAnimate(self: *base.ComponentBase, delta_time: f32) void {
     for (self.children) |child| {
         child.base.animate(delta_time);
     }
+}
+
+test "button stores label in text cache" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+
+    const component = try button(arena.allocator(), .{ .label = "OK" });
+    try std.testing.expectEqualStrings("OK", component.base.text_cache);
+}
+
+test "container animate forwards to children" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    var triggered = false;
+    const child_ptr = try allocator.create(base.ComponentBase);
+    child_ptr.* = base.ComponentBase{
+        .text_cache = "",
+        .user_data = @as(*anyopaque, @ptrCast(&triggered)),
+        .renderFn = null,
+        .eventFn = null,
+        .animationFn = struct {
+            fn animate(self: *base.ComponentBase, _: f32) void {
+                const flag_ptr = @as(*bool, @ptrCast(self.user_data.?));
+                flag_ptr.* = true;
+            }
+        }.animate,
+        .children = &[_]base.Component{},
+        .focus_index = 0,
+    };
+
+    const child_component = base.Component{ .base = child_ptr };
+    const container_component = try container(allocator, &[_]base.Component{child_component});
+
+    container_component.base.animate(0.1);
+    try std.testing.expect(triggered);
 }

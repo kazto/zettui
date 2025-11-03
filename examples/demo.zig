@@ -15,6 +15,6 @@ pub fn main() !void {
 
     screen.drawString(2, 1, "Zettui demo");
 
-    var stdout = std.io.getStdOut().writer();
+    const stdout = std.fs.File.stdout();
     try screen.present(stdout);
 }
