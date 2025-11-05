@@ -17,4 +17,39 @@ pub fn main() !void {
 
     const stdout = std.fs.File.stdout();
     try screen.present(stdout);
+
+    // Simple DOM showcase
+    var ctx: zettui.dom.RenderContext = .{};
+    try stdout.writeAll("\nDOM elements:\n");
+    {
+        var wnd = zettui.dom.Node{ .window = .{ .title = "Window" } };
+        try wnd.render(&ctx);
+        try stdout.writeAll("\n");
+        var sep = zettui.dom.Node{ .separator = .{} };
+        try sep.render(&ctx);
+        var g = zettui.dom.Node{ .gauge = .{ .fraction = 0.4 } };
+        try g.render(&ctx);
+        try stdout.writeAll(" ");
+        var sp = zettui.dom.Node{ .spinner = .{} };
+        try sp.render(&ctx);
+        try stdout.writeAll("\n");
+    }
+
+    // Simple Component showcase
+    try stdout.writeAll("\nComponents:\n");
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+
+    const btn = try zettui.component.widgets.button(a, .{ .label = "OK" });
+    try btn.render();
+    try stdout.writeAll("\n");
+
+    const cb = try zettui.component.widgets.checkbox(a, .{ .label = "Accept", .checked = false });
+    try cb.render();
+    try stdout.writeAll("\n");
+
+    const tog = try zettui.component.widgets.toggle(a, .{ .on_label = "ON", .off_label = "OFF", .on = true });
+    try tog.render();
+    try stdout.writeAll("\n");
 }

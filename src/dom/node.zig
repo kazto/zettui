@@ -70,7 +70,7 @@ pub const Node = union(enum) {
         }
     }
 
-    pub fn render(self: Node, ctx: *RenderContext) !void {
+    pub fn render(self: Node, ctx: *RenderContext) anyerror!void {
         switch (self) {
             .text => |text_node| {
                 try std.fs.File.stdout().writeAll(text_node.content);
@@ -90,7 +90,7 @@ pub const Node = union(enum) {
             .spinner => |s| {
                 try std.fs.File.stdout().writeAll(s.currentFrame());
             },
-            .custom => |renderer| try renderer.callback.*(renderer.user_data, ctx),
+            .custom => |renderer| try @call(.auto, renderer.callback, .{ renderer.user_data, ctx }),
             .container => |container_node| try container_node.render(ctx),
             else => {},
         }
@@ -171,7 +171,7 @@ pub const Container = struct {
         return req;
     }
 
-    pub fn render(self: Container, ctx: *RenderContext) !void {
+    pub fn render(self: Container, ctx: *RenderContext) anyerror!void {
         for (self.children) |child| {
             try child.render(ctx);
         }

@@ -5,6 +5,11 @@ const events = @import("events.zig");
 
 const CheckboxState = struct { checked: bool };
 const ToggleState = struct { on: bool };
+const TogglePayload = struct {
+    store: ToggleState,
+    on_label: []const u8,
+    off_label: []const u8,
+};
 
 pub fn button(allocator: std.mem.Allocator, opts: options.ButtonOptions) !base.Component {
     const owned_label = try allocator.dupe(u8, opts.label);
@@ -144,17 +149,13 @@ fn checkboxEvent(self: *base.ComponentBase, event: events.Event) bool {
 pub fn toggle(allocator: std.mem.Allocator, opts: options.ToggleOptions) !base.Component {
     const on_copy = try allocator.dupe(u8, opts.on_label);
     const off_copy = try allocator.dupe(u8, opts.off_label);
-    const state_ptr = try allocator.create(struct {
-        store: ToggleState,
-        on_label: []const u8,
-        off_label: []const u8,
-    });
-    state_ptr.* = .{ .store = .{ .on = opts.on }, .on_label = on_copy, .off_label = off_copy };
+    const payload = try allocator.create(TogglePayload);
+    payload.* = .{ .store = .{ .on = opts.on }, .on_label = on_copy, .off_label = off_copy };
 
     const component_ptr = try allocator.create(base.ComponentBase);
     component_ptr.* = base.ComponentBase{
         .text_cache = "",
-        .user_data = @as(*anyopaque, @ptrCast(state_ptr)),
+        .user_data = @as(*anyopaque, @ptrCast(payload)),
         .renderFn = toggleRender,
         .eventFn = toggleEvent,
         .animationFn = null,
@@ -166,11 +167,11 @@ pub fn toggle(allocator: std.mem.Allocator, opts: options.ToggleOptions) !base.C
 
 fn toggleRender(self: *base.ComponentBase) anyerror!void {
     const stdout = std.fs.File.stdout();
-    const state = @as(*struct { store: ToggleState, on_label: []const u8, off_label: []const u8 }, @ptrCast(self.user_data.?));
-    if (state.store.on) {
-        try stdout.writeAll(state.on_label);
+    const payload = @as(*TogglePayload, @ptrCast(@alignCast(self.user_data.?)));
+    if (payload.store.on) {
+        try stdout.writeAll(payload.on_label);
     } else {
-        try stdout.writeAll(state.off_label);
+        try stdout.writeAll(payload.off_label);
     }
 }
 
@@ -178,8 +179,8 @@ fn toggleEvent(self: *base.ComponentBase, event: events.Event) bool {
     switch (event) {
         .key => |k| {
             if (k.codepoint == ' ' or k.codepoint == '\n') {
-                const state = @as(*struct { store: ToggleState, on_label: []const u8, off_label: []const u8 }, @ptrCast(self.user_data.?));
-                state.store.on = !state.store.on;
+                const payload = @as(*TogglePayload, @ptrCast(@alignCast(self.user_data.?)));
+                payload.store.on = !payload.store.on;
                 return true;
             }
         },
