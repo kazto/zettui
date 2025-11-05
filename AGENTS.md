@@ -6,6 +6,14 @@ Source code lives under `src/`, mirroring the DOM, Component, and Screen modules
 ## Build, Test, and Development Commands
 Use `zig build` for a full compile; add `-Doptimize=ReleaseFast` when measuring performance regressions. Run `zig build run` to launch the default demo defined in `build.zig`. Execute `zig build test` for the aggregated suite, or `zig test src/path/to/module.zig` when iterating on a single file. Regenerate formatting with `zig fmt src/ examples/ docs/` before committing.
 
+### Local Cache Directory
+Prefer a repo-local Zig global cache to avoid polluting user-level caches and to improve reproducibility across agents. Pass `--global-cache-dir=./.zig-cache` to Zig invocations:
+
+- Build: `zig build --global-cache-dir=./.zig-cache`
+- Run demo: `zig build --global-cache-dir=./.zig-cache run`
+- Test (build step): `zig build --global-cache-dir=./.zig-cache test`
+- Test single file: `zig test --global-cache-dir=./.zig-cache src/path/to/module.zig`
+
 ## Coding Style & Naming Conventions
 Follow Zig style defaults: four-space indentation, `camelCase` for functions, `TitleCase` for types, and `snake_case` for constants defined with `const`. Avoid trailing whitespace and keep line length under 100 characters unless ASCII art or tables require more. Always run `zig fmt` to enforce canonical spacing, import ordering, and comment alignment. Prefer explicit enums and tagged unions to magic numbers, matching the structure outlined in the specification.
 
