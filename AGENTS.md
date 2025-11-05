@@ -4,7 +4,7 @@
 Source code lives under `src/`, mirroring the DOM, Component, and Screen modules described in `docs/specification.md`. Public headers or Zig packages should align with their implementation files to keep the inventory in `docs/tasks.md` trustworthy. Documentation and planning artifacts reside in `docs/`; examples and demos belong in `examples/`. Keep module-specific tests beside their targets to simplify cross-referencing during reviews.
 
 ## Build, Test, and Development Commands
-Use `zig build` for a full compile; add `-Doptimize=ReleaseFast` when measuring performance regressions. Run `zig build run` to launch the default demo defined in `build.zig`. Execute `zig build test` for the aggregated suite, or `zig test src/path/to/module.zig` when iterating on a single file. Regenerate formatting with `zig fmt src/ examples/ docs/` before committing.
+Use `zig build` for a full compile; add `-Doptimize=ReleaseFast` when measuring performance regressions. Run `zig build run` to launch the default demo defined in `build.zig`. For tests, run the full suite via `zig test src/lib.zig`; prefer `zig test` (which compiles and executes) over `zig build test` (which may only build the test binary). Use `zig test src/path/to/module.zig` when iterating on a single file. Regenerate formatting with `zig fmt src/ examples/ docs/` before committing.
 
 ### Local Cache Directory
 Prefer a repo-local Zig global cache to avoid polluting user-level caches and to improve reproducibility across agents. Pass `--global-cache-dir=./.zig-cache` to Zig invocations:
@@ -13,6 +13,10 @@ Prefer a repo-local Zig global cache to avoid polluting user-level caches and to
 - Run demo: `zig build --global-cache-dir=./.zig-cache run`
 - Test (build step): `zig build --global-cache-dir=./.zig-cache test`
 - Test single file: `zig test --global-cache-dir=./.zig-cache src/path/to/module.zig`
+
+Note: Some Zig versions do not support `--global-cache-dir`. If the flag is unrecognized, set the environment variable instead:
+- POSIX shells: `ZIG_GLOBAL_CACHE_DIR=./.zig-cache zig build` (and similarly for `zig test`/`zig run`)
+- PowerShell: `$Env:ZIG_GLOBAL_CACHE_DIR = ".\.zig-cache"; zig build`
 
 ## Coding Style & Naming Conventions
 Follow Zig style defaults: four-space indentation, `camelCase` for functions, `TitleCase` for types, and `snake_case` for constants defined with `const`. Avoid trailing whitespace and keep line length under 100 characters unless ASCII art or tables require more. Always run `zig fmt` to enforce canonical spacing, import ordering, and comment alignment. Prefer explicit enums and tagged unions to magic numbers, matching the structure outlined in the specification.
