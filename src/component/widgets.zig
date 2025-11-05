@@ -3,6 +3,9 @@ const base = @import("base.zig");
 const options = @import("options.zig");
 const events = @import("events.zig");
 
+const CheckboxState = struct { checked: bool };
+const ToggleState = struct { on: bool };
+
 pub fn button(allocator: std.mem.Allocator, opts: options.ButtonOptions) !base.Component {
     const owned_label = try allocator.dupe(u8, opts.label);
     const component_ptr = try allocator.create(base.ComponentBase);
@@ -95,6 +98,96 @@ fn containerAnimate(self: *base.ComponentBase, delta_time: f32) void {
     }
 }
 
+pub fn checkbox(allocator: std.mem.Allocator, opts: options.CheckboxOptions) !base.Component {
+    const label_copy = try allocator.dupe(u8, opts.label);
+    const state_ptr = try allocator.create(CheckboxState);
+    state_ptr.* = .{ .checked = opts.checked };
+
+    const component_ptr = try allocator.create(base.ComponentBase);
+    component_ptr.* = base.ComponentBase{
+        .text_cache = label_copy,
+        .user_data = @as(*anyopaque, @ptrCast(state_ptr)),
+        .renderFn = checkboxRender,
+        .eventFn = checkboxEvent,
+        .animationFn = null,
+        .children = &[_]base.Component{},
+        .focus_index = 0,
+    };
+    return .{ .base = component_ptr };
+}
+
+fn checkboxRender(self: *base.ComponentBase) anyerror!void {
+    const stdout = std.fs.File.stdout();
+    const state = @as(*CheckboxState, @ptrCast(self.user_data.?));
+    if (state.checked) {
+        try stdout.writeAll("[x] ");
+    } else {
+        try stdout.writeAll("[ ] ");
+    }
+    try stdout.writeAll(self.text_cache);
+}
+
+fn checkboxEvent(self: *base.ComponentBase, event: events.Event) bool {
+    switch (event) {
+        .key => |k| {
+            if (k.codepoint == ' ' or k.codepoint == '\n') {
+                const state = @as(*CheckboxState, @ptrCast(self.user_data.?));
+                state.checked = !state.checked;
+                return true;
+            }
+        },
+        else => {},
+    }
+    return false;
+}
+
+pub fn toggle(allocator: std.mem.Allocator, opts: options.ToggleOptions) !base.Component {
+    const on_copy = try allocator.dupe(u8, opts.on_label);
+    const off_copy = try allocator.dupe(u8, opts.off_label);
+    const state_ptr = try allocator.create(struct {
+        store: ToggleState,
+        on_label: []const u8,
+        off_label: []const u8,
+    });
+    state_ptr.* = .{ .store = .{ .on = opts.on }, .on_label = on_copy, .off_label = off_copy };
+
+    const component_ptr = try allocator.create(base.ComponentBase);
+    component_ptr.* = base.ComponentBase{
+        .text_cache = "",
+        .user_data = @as(*anyopaque, @ptrCast(state_ptr)),
+        .renderFn = toggleRender,
+        .eventFn = toggleEvent,
+        .animationFn = null,
+        .children = &[_]base.Component{},
+        .focus_index = 0,
+    };
+    return .{ .base = component_ptr };
+}
+
+fn toggleRender(self: *base.ComponentBase) anyerror!void {
+    const stdout = std.fs.File.stdout();
+    const state = @as(*struct { store: ToggleState, on_label: []const u8, off_label: []const u8 }, @ptrCast(self.user_data.?));
+    if (state.store.on) {
+        try stdout.writeAll(state.on_label);
+    } else {
+        try stdout.writeAll(state.off_label);
+    }
+}
+
+fn toggleEvent(self: *base.ComponentBase, event: events.Event) bool {
+    switch (event) {
+        .key => |k| {
+            if (k.codepoint == ' ' or k.codepoint == '\n') {
+                const state = @as(*struct { store: ToggleState, on_label: []const u8, off_label: []const u8 }, @ptrCast(self.user_data.?));
+                state.store.on = !state.store.on;
+                return true;
+            }
+        },
+        else => {},
+    }
+    return false;
+}
+
 test "button stores label in text cache" {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
@@ -130,4 +223,18 @@ test "container animate forwards to children" {
 
     container_component.base.animate(0.1);
     try std.testing.expect(triggered);
+}
+
+test "checkbox toggles on space key" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const cmp = try checkbox(allocator, .{ .label = "Accept", .checked = false });
+    const ev = events.Event{ .key = .{ .codepoint = ' ' } };
+    const consumed = cmp.onEvent(ev);
+    try std.testing.expect(consumed);
+
+    const state = @as(*CheckboxState, @ptrCast(cmp.base.user_data.?));
+    try std.testing.expect(state.checked);
 }

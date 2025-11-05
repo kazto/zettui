@@ -12,6 +12,8 @@ pub const MenuOptions = options.MenuOptions;
 pub const InputOptions = options.InputOptions;
 pub const SliderOptions = options.SliderOptions;
 pub const WindowOptions = options.WindowOptions;
+pub const CheckboxOptions = options.CheckboxOptions;
+pub const ToggleOptions = options.ToggleOptions;
 
 pub const Event = events.Event;
 pub const Mouse = events.Mouse;

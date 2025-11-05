@@ -35,3 +35,14 @@ pub const AnimatedColorOption = struct {
     end_color: u24 = 0xFFFFFF,
     duration_ms: u32 = 150,
 };
+
+pub const CheckboxOptions = struct {
+    label: []const u8 = "",
+    checked: bool = false,
+};
+
+pub const ToggleOptions = struct {
+    on_label: []const u8 = "ON",
+    off_label: []const u8 = "OFF",
+    on: bool = false,
+};
