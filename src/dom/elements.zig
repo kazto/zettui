@@ -47,3 +47,17 @@ pub fn gaugeWidth(fraction: f32, width: usize) node.Node {
 pub fn spinner() node.Node {
     return .{ .spinner = .{} };
 }
+
+pub fn spinnerAdvance(n: *node.Node) bool {
+    switch (n.*) {
+        .spinner => |*s| {
+            s.advance();
+            return true;
+        },
+        else => return false,
+    }
+}
+
+pub fn paragraph(content: []const u8, width: usize) node.Node {
+    return .{ .paragraph = .{ .content = content, .width = width } };
+}

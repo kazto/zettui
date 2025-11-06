@@ -40,6 +40,7 @@ pub const Node = union(enum) {
     window: WindowFrame,
     gauge: Gauge,
     spinner: Spinner,
+    paragraph: Paragraph,
 
     pub fn computeRequirement(self: Node) Requirement {
         return switch (self) {
@@ -51,6 +52,11 @@ pub const Node = union(enum) {
             .window => |w| Requirement{ .min_width = 2 + w.title.len, .min_height = 1 },
             .gauge => |g| Requirement{ .min_width = @max(@as(usize, 3), g.width), .min_height = 1 },
             .spinner => |s| Requirement{ .min_width = s.currentFrame().len, .min_height = 1 },
+            .paragraph => |p| blk: {
+                const w: usize = if (p.width == 0) 1 else p.width;
+                const lines: usize = (p.content.len + w - 1) / w;
+                break :blk Requirement{ .min_width = w, .min_height = if (lines == 0) 1 else lines };
+            },
             .container => |container_node| container_node.computeRequirement(),
             else => Requirement{},
         };
@@ -99,6 +105,17 @@ pub const Node = union(enum) {
             },
             .spinner => |s| {
                 try std.fs.File.stdout().writeAll(s.currentFrame());
+            },
+            .paragraph => |p| {
+                const stdout = std.fs.File.stdout();
+                const w: usize = if (p.width == 0) 1 else p.width;
+                var i: usize = 0;
+                while (i < p.content.len) : (i += 1) {
+                    if (w > 0 and i > 0 and (i % w) == 0) {
+                        try stdout.writeAll("\n");
+                    }
+                    try stdout.writeAll(p.content[i .. i + 1]);
+                }
             },
             .custom => |renderer| try @call(.auto, renderer.callback, .{ renderer.user_data, ctx }),
             .container => |container_node| try container_node.render(ctx),
@@ -154,6 +171,15 @@ pub const Spinner = struct {
         if (self.frames.len == 0) return "";
         return self.frames[self.index % self.frames.len];
     }
+
+    pub fn advance(self: *Spinner) void {
+        self.index +%= 1;
+    }
+};
+
+pub const Paragraph = struct {
+    content: []const u8,
+    width: usize = 40,
 };
 
 pub const Container = struct {
@@ -279,4 +305,28 @@ test "spinner width equals current frame length" {
     const s = Node{ .spinner = .{} };
     const req = s.computeRequirement();
     try std.testing.expectEqual(@as(usize, 1), req.min_width);
+}
+
+test "spinner advance cycles frames" {
+    var n = Node{ .spinner = .{} };
+    const before = switch (n) {
+        .spinner => |s| s.currentFrame(),
+        else => unreachable,
+    };
+    switch (n) {
+        .spinner => |*s| s.advance(),
+        else => unreachable,
+    }
+    const after = switch (n) {
+        .spinner => |s| s.currentFrame(),
+        else => unreachable,
+    };
+    try std.testing.expect(!std.mem.eql(u8, before, after));
+}
+
+test "paragraph requirement uses width and line count" {
+    const p = Node{ .paragraph = .{ .content = "hello world", .width = 5 } };
+    const req = p.computeRequirement();
+    try std.testing.expectEqual(@as(usize, 5), req.min_width);
+    try std.testing.expectEqual(@as(usize, 3), req.min_height);
 }

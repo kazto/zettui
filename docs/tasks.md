@@ -17,7 +17,21 @@ Tasks derived from `docs/specification.md` to track coverage and implementation 
 
 ### Layout & Widgets
 - [ ] Provide element builders in `elements.zig` (`text`, `paragraph*`, `window`, `gauge*`, `spinner`, `graph`, `canvas`, border and separator helpers`).
+  - [x] `text`
+  - [x] `paragraph`
+  - [x] `window`
+  - [x] `gauge`
+  - [x] `spinner`
+  - [x] `separator`
+  - [ ] `graph`
+  - [ ] `canvas`
+  - [ ] border helpers (beyond simple window title rendering)
 - [ ] Support container combinators (`hbox`, `vbox`, `dbox`, `flexbox`) plus flow utilities (`flex*`, `filler`, `size`, `frame`, `focus`, cursor modifiers) returning fully configured `Node` values.
+  - [x] `hbox`
+  - [x] `vbox`
+  - [ ] `dbox`
+  - [ ] `flexbox`
+  - [ ] flow utilities (`flex*`, `filler`, `size`, `frame`, `focus`, cursor modifiers)
 
 ### Styling
 - [ ] Maintain decorators for typography, color/gradient layers, selection styling, hyperlinks, centering helpers, and `automerge`.
@@ -35,10 +49,30 @@ Tasks derived from `docs/specification.md` to track coverage and implementation 
 
 ### Widgets
 - [ ] Deliver interactive widgets (buttons, checkboxes, text inputs with placeholder/password/multiline, sliders, radio boxes, dropdowns, toggles, menus including animated, resizable splits, modals, collapsibles, hover wrappers, windows).
+  - [x] Button
+  - [x] Checkbox
+  - [x] Toggle
+  - [ ] Text inputs (placeholder/password/multiline)
+  - [ ] Sliders
+  - [ ] Radio boxes
+  - [ ] Dropdowns
+  - [ ] Menus (animated)
+  - [ ] Resizable splits
+  - [ ] Modals
+  - [ ] Collapsibles
+  - [ ] Hover wrappers
+  - [ ] Windows
 - [ ] Support renderer bridges and conditional presentation via `maybe` wrappers.
 
 ### Configuration
 - [ ] Keep option structs (`ButtonOptions`, `MenuOptions`, `InputOptions`, `SliderOptions`, `WindowOptions`, etc.) current with animation settings (`UnderlineOption`, `AnimatedColorOption`) and callback hooks.
+  - [x] `ButtonOptions`
+  - [x] `WindowOptions`
+  - [x] `CheckboxOptions`
+  - [x] `ToggleOptions`
+  - [ ] `MenuOptions`
+  - [ ] `InputOptions`
+  - [ ] `SliderOptions`
 
 ### Events & Looping
 - [ ] Ensure `events.zig` enumerates keyboard characters, modifiers, function keys, mouse events, and cursor state.
