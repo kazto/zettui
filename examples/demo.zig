@@ -27,11 +27,20 @@ pub fn main() !void {
         try stdout.writeAll("\n");
         var sep = zettui.dom.Node{ .separator = .{} };
         try sep.render(&ctx);
-        var g = zettui.dom.Node{ .gauge = .{ .fraction = 0.4 } };
+        var g = zettui.dom.Node{ .gauge = .{ .fraction = 0.5 } };
         try g.render(&ctx);
         try stdout.writeAll(" ");
         var sp = zettui.dom.Node{ .spinner = .{} };
         try sp.render(&ctx);
+        try stdout.writeAll("\n");
+
+        // Paragraph wrapped to width 16
+        try stdout.writeAll("Paragraph (w=16):\n");
+        var para = zettui.dom.elements.paragraph(
+            "This is a wrapped paragraph demo.",
+            16,
+        );
+        try para.render(&ctx);
         try stdout.writeAll("\n");
     }
 
