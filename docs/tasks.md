@@ -50,12 +50,12 @@ Tasks derived from `docs/specification.md` to track coverage and implementation 
 ## Screen Module
 ### Rendering Surface
 - [x] Maintain `screen/image.zig` and `screen/screen.zig` pixel grid rendering, printing, clearing, cursor management, hyperlink registration, and shader hooks.
-- [ ] Keep `Box` geometric utilities consistent with layout logic.
+- [x] Keep `Box` geometric utilities consistent with layout logic.
 - [x] Ensure `Pixel` structs store style flags, hyperlink identifiers, and UTF-8 graphemes accurately.
 
 ### Colors
 - [x] Support `color.zig` palette (1/16/256) and true-color creation (RGB/HSV/RGBA/HSVA) with blending/interpolation helpers.
-- [ ] Expose `TerminalInfo` metadata for palette support, dimensions, and fallbacks.
+- [x] Expose `TerminalInfo` metadata for palette support, dimensions, and fallbacks.
 
 ### Strings & Utilities
 - [x] Preserve UTF-8 helpers for conversion, width computation, glyph splitting, and cell-to-glyph mapping between `[]const u8` buffers.
