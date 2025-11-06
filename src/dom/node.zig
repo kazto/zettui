@@ -49,7 +49,7 @@ pub const Node = union(enum) {
             },
             .separator => Requirement{ .min_width = 1, .min_height = 1 },
             .window => |w| Requirement{ .min_width = 2 + w.title.len, .min_height = 1 },
-            .gauge => Requirement{ .min_width = 3, .min_height = 1 },
+            .gauge => |g| Requirement{ .min_width = @max(@as(usize, 3), g.width), .min_height = 1 },
             .spinner => |s| Requirement{ .min_width = s.currentFrame().len, .min_height = 1 },
             .container => |container_node| container_node.computeRequirement(),
             else => Requirement{},
@@ -84,8 +84,18 @@ pub const Node = union(enum) {
                 try std.fs.File.stdout().writeAll("]");
             },
             .gauge => |g| {
-                _ = g;
-                try std.fs.File.stdout().writeAll("[ ]");
+                const stdout = std.fs.File.stdout();
+                const total = if (g.width < 3) 3 else g.width;
+                const inner: usize = total - 2;
+                const clamped = std.math.clamp(g.fraction, 0.0, 1.0);
+                const filled: usize = @intFromFloat(@floor(@as(f32, @floatFromInt(inner)) * clamped + 0.0001));
+                const empty: usize = inner - filled;
+                try stdout.writeAll("[");
+                var i: usize = 0;
+                while (i < filled) : (i += 1) try stdout.writeAll("#");
+                i = 0;
+                while (i < empty) : (i += 1) try stdout.writeAll(".");
+                try stdout.writeAll("]");
             },
             .spinner => |s| {
                 try std.fs.File.stdout().writeAll(s.currentFrame());
@@ -133,6 +143,7 @@ pub const WindowFrame = struct {
 
 pub const Gauge = struct {
     fraction: f32 = 0.0,
+    width: usize = 10,
 };
 
 pub const Spinner = struct {
@@ -257,10 +268,10 @@ test "window requirement accounts for title length" {
     try std.testing.expectEqual(@as(usize, 1), req.min_height);
 }
 
-test "gauge has minimal width of 3" {
+test "gauge default width is 10" {
     const g = Node{ .gauge = .{ .fraction = 0.5 } };
     const req = g.computeRequirement();
-    try std.testing.expectEqual(@as(usize, 3), req.min_width);
+    try std.testing.expectEqual(@as(usize, 10), req.min_width);
     try std.testing.expectEqual(@as(usize, 1), req.min_height);
 }
 

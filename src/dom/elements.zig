@@ -37,7 +37,11 @@ pub fn window(title: []const u8) node.Node {
 }
 
 pub fn gauge(fraction: f32) node.Node {
-    return .{ .gauge = .{ .fraction = fraction } };
+    return .{ .gauge = .{ .fraction = fraction, .width = 10 } };
+}
+
+pub fn gaugeWidth(fraction: f32, width: usize) node.Node {
+    return .{ .gauge = .{ .fraction = fraction, .width = width } };
 }
 
 pub fn spinner() node.Node {
