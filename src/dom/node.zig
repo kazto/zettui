@@ -135,10 +135,39 @@ pub const Node = union(enum) {
                 var i: usize = 0;
                 while (i < inner_w) : (i += 1) try stdout.writeAll("\xE2\x94\x80"); // ─
                 try stdout.writeAll("\xE2\x94\x90\n"); // ┐
-                // middle: │child│ (child may render multiple lines)
-                try stdout.writeAll("\xE2\x94\x82"); // │
-                try f.child.*.render(ctx);
-                try stdout.writeAll("\xE2\x94\x82\n"); // │
+
+                // middle rows: wrap known multi-line children with borders per line
+                switch (f.child.*) {
+                    .paragraph => |p| {
+                        const w: usize = if (p.width == 0) 1 else p.width;
+                        var idx: usize = 0;
+                        while (idx < p.content.len) {
+                            try stdout.writeAll("\xE2\x94\x82"); // │
+                            const rem = p.content.len - idx;
+                            const take = if (rem < w) rem else w;
+                            try stdout.writeAll(p.content[idx .. idx + take]);
+                            var pad: usize = inner_w - take;
+                            while (pad > 0) : (pad -= 1) try stdout.writeAll(" ");
+                            try stdout.writeAll("\xE2\x94\x82\n"); // │
+                            idx += take;
+                        }
+                        if (p.content.len == 0) {
+                            // empty content still renders one empty line inside the frame
+                            try stdout.writeAll("\xE2\x94\x82");
+                            var j: usize = 0;
+                            while (j < inner_w) : (j += 1) try stdout.writeAll(" ");
+                            try stdout.writeAll("\xE2\x94\x82\n");
+                        }
+                    },
+                    else => {
+                        // default: single row with child rendering
+                        try stdout.writeAll("\xE2\x94\x82"); // │
+                        try f.child.*.render(ctx);
+                        // pad to inner width is not attempted here; assume child fits
+                        try stdout.writeAll("\xE2\x94\x82\n"); // │
+                    },
+                }
+
                 // bottom border: └───┘
                 try stdout.writeAll("\xE2\x94\x94"); // └
                 i = 0;
