@@ -59,6 +59,7 @@ pub const Node = union(enum) {
     size: Size,
     filler: Filler,
     focus: Focus,
+    flexbox: Flexbox,
 
     pub fn computeRequirement(self: Node) Requirement {
         return switch (self) {
@@ -92,6 +93,32 @@ pub const Node = union(enum) {
                 var req = fx.child.*.computeRequirement();
                 req.focus = fx.position;
                 break :blkFocus req;
+            },
+            .flexbox => |fb| blkFlex: {
+                var req = Requirement{};
+                const count = fb.children.len;
+                const gap_total: usize = if (count > 0) fb.gap * (count - 1) else 0;
+                switch (fb.direction) {
+                    .row => {
+                        req.min_height = 0;
+                        req.min_width = gap_total;
+                        for (fb.children) |child| {
+                            const cr = child.computeRequirement();
+                            req.min_width += cr.min_width;
+                            req.min_height = @max(req.min_height, cr.min_height);
+                        }
+                    },
+                    .column => {
+                        req.min_width = 0;
+                        req.min_height = gap_total;
+                        for (fb.children) |child| {
+                            const cr = child.computeRequirement();
+                            req.min_width = @max(req.min_width, cr.min_width);
+                            req.min_height += cr.min_height;
+                        }
+                    },
+                }
+                break :blkFlex req;
             },
             .container => |container_node| container_node.computeRequirement(),
             .frame => |f| blockFrame: {
@@ -218,6 +245,25 @@ pub const Node = union(enum) {
                 _ = fx;
                 // focus decorator does not affect rendering, only requirement metadata
             },
+            .flexbox => |fb| {
+                var i: usize = 0;
+                for (fb.children) |child| {
+                    if (i > 0) {
+                        switch (fb.direction) {
+                            .row => {
+                                var g: usize = 0;
+                                while (g < fb.gap) : (g += 1) try ctxWrite(ctx, " ");
+                            },
+                            .column => {
+                                var g2: usize = 0;
+                                while (g2 < fb.gap) : (g2 += 1) try ctxWrite(ctx, "\n");
+                            },
+                        }
+                    }
+                    try child.render(ctx);
+                    i += 1;
+                }
+            },
             .container => |container_node| try container_node.render(ctx),
             else => {},
         }
@@ -238,6 +284,11 @@ pub const Node = union(enum) {
                 var tmp = fx.child.*;
                 tmp.select(selection);
             },
+            .flexbox => |*fb| {
+                for (fb.children) |*child| {
+                    child.select(selection);
+                }
+            },
             else => selection.* = .{},
         }
     }
@@ -248,6 +299,11 @@ pub const Node = union(enum) {
             .frame => |f| try f.child.*.getSelectedContent(allocator),
             .size => |s| try s.child.*.getSelectedContent(allocator),
             .focus => |fx| try fx.child.*.getSelectedContent(allocator),
+            .flexbox => |fb| blkSel: {
+                // Return first child's content by convention
+                if (fb.children.len == 0) break :blkSel "";
+                break :blkSel try fb.children[0].getSelectedContent(allocator);
+            },
             else => "",
         };
     }
@@ -314,6 +370,14 @@ pub const Filler = struct {
 pub const Focus = struct {
     child: *const Node,
     position: FocusPosition = .center,
+};
+
+pub const FlexDirection = enum { row, column };
+
+pub const Flexbox = struct {
+    children: []const Node = &[_]Node{},
+    direction: FlexDirection = .row,
+    gap: usize = 0,
 };
 
 pub const Container = struct {
@@ -526,4 +590,32 @@ test "focus decorator sets requirement focus" {
     const r = n.computeRequirement();
     try std.testing.expect(r.focus != null);
     try std.testing.expectEqual(FocusPosition.end, r.focus.?);
+}
+
+test "flexbox row aggregates widths plus gap" {
+    const n = Node{ .flexbox = .{
+        .direction = .row,
+        .gap = 1,
+        .children = &[_]Node{
+            .{ .text = .{ .content = "ab" } },
+            .{ .text = .{ .content = "tool" } },
+        },
+    } };
+    const r = n.computeRequirement();
+    try std.testing.expectEqual(@as(usize, 7), r.min_width); // 2 + 1 + 4
+    try std.testing.expectEqual(@as(usize, 1), r.min_height);
+}
+
+test "flexbox column aggregates heights plus gap" {
+    const n = Node{ .flexbox = .{
+        .direction = .column,
+        .gap = 2,
+        .children = &[_]Node{
+            .{ .text = .{ .content = "ab" } },
+            .{ .text = .{ .content = "tool" } },
+        },
+    } };
+    const r = n.computeRequirement();
+    try std.testing.expectEqual(@as(usize, 4), r.min_width);
+    try std.testing.expectEqual(@as(usize, 4), r.min_height); // 1 + 2 + 1
 }

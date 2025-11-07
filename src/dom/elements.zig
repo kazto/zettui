@@ -109,3 +109,11 @@ pub fn focusOwned(allocator: std.mem.Allocator, child: node.Node, pos: node.Focu
     ptr.* = child;
     return .{ .focus = .{ .child = ptr, .position = pos } };
 }
+
+pub fn flexboxRow(children: []const node.Node, gap: usize) node.Node {
+    return .{ .flexbox = .{ .children = children, .direction = .row, .gap = gap } };
+}
+
+pub fn flexboxColumn(children: []const node.Node, gap: usize) node.Node {
+    return .{ .flexbox = .{ .children = children, .direction = .column, .gap = gap } };
+}

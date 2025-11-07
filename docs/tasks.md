@@ -30,7 +30,7 @@ Tasks derived from `docs/specification.md` to track coverage and implementation 
   - [x] `hbox`
   - [x] `vbox`
   - [ ] `dbox`
-  - [ ] `flexbox`
+  - [x] `flexbox`
   - Flow utilities:
     - [x] `frame`
     - [ ] `flex*`
