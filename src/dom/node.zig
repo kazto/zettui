@@ -61,6 +61,7 @@ pub const Node = union(enum) {
     focus: Focus,
     flexbox: Flexbox,
     dbox: Dbox,
+    cursor: Cursor,
 
     pub fn computeRequirement(self: Node) Requirement {
         return switch (self) {
@@ -129,6 +130,11 @@ pub const Node = union(enum) {
                     req.min_height = @max(req.min_height, cr.min_height);
                 }
                 break :blkD req;
+            },
+            .cursor => |c| blkCur: {
+                // Cursor decorator does not change size; inherit child's requirement
+                if (c.child) |ch| break :blkCur ch.*.computeRequirement();
+                break :blkCur Requirement{};
             },
             .container => |container_node| container_node.computeRequirement(),
             .frame => |f| blockFrame: {
@@ -281,6 +287,9 @@ pub const Node = union(enum) {
                     try child.render(ctx);
                 }
             },
+            .cursor => |c| {
+                if (c.child) |ch| try ch.*.render(ctx);
+            },
             .container => |container_node| try container_node.render(ctx),
             else => {},
         }
@@ -302,12 +311,26 @@ pub const Node = union(enum) {
                 tmp.select(selection);
             },
             .flexbox => |*fb| {
-                for (fb.children) |*child| {
-                    child.select(selection);
+                for (fb.children) |child| {
+                    var tmp = child;
+                    tmp.select(selection);
                 }
             },
             .dbox => |*db| {
-                for (db.children) |*child| child.select(selection);
+                for (db.children) |child| {
+                    var tmp = child;
+                    tmp.select(selection);
+                }
+            },
+            .cursor => |*c| {
+                if (c.child) |ch| {
+                    var tmp = ch.*;
+                    tmp.select(selection);
+                    selection.has_focus = true;
+                    selection.cursor_index = c.index;
+                } else {
+                    selection.* = .{};
+                }
             },
             else => selection.* = .{},
         }
@@ -327,6 +350,10 @@ pub const Node = union(enum) {
             .dbox => |db| blkSel2: {
                 if (db.children.len == 0) break :blkSel2 "";
                 break :blkSel2 try db.children[db.children.len - 1].getSelectedContent(allocator);
+            },
+            .cursor => |c| blkSel3: {
+                if (c.child) |ch| break :blkSel3 try ch.*.getSelectedContent(allocator);
+                break :blkSel3 "";
             },
             else => "",
         };
@@ -410,6 +437,11 @@ pub const Dbox = struct {
     box: Box = .{},
 };
 
+pub const Cursor = struct {
+    child: ?*const Node = null,
+    index: usize = 0,
+};
+
 pub const Container = struct {
     children: []const Node = &[_]Node{},
     box: Box = .{},
@@ -443,8 +475,9 @@ pub const Container = struct {
     }
 
     pub fn select(self: *Container, selection: *Selection) void {
-        for (self.children) |*child| {
-            child.select(selection);
+        for (self.children) |child| {
+            var tmp = child;
+            tmp.select(selection);
         }
     }
 
@@ -662,6 +695,15 @@ test "dbox aggregates by max width/height" {
     const r = n.computeRequirement();
     try std.testing.expectEqual(@as(usize, 7), r.min_width);
     try std.testing.expectEqual(@as(usize, 1), r.min_height);
+}
+
+test "cursor decorator sets selection index and focus" {
+    const child = Node{ .text = .{ .content = "abc" } };
+    var n = Node{ .cursor = .{ .child = &child, .index = 2 } };
+    var sel: Selection = .{};
+    n.select(&sel);
+    try std.testing.expect(sel.has_focus);
+    try std.testing.expectEqual(@as(usize, 2), sel.cursor_index);
 }
 
 test "flexbox setBox updates own box" {

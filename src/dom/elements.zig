@@ -121,3 +121,13 @@ pub fn flexboxColumn(children: []const node.Node, gap: usize) node.Node {
 pub fn dbox(children: []const node.Node) node.Node {
     return .{ .dbox = .{ .children = children } };
 }
+
+pub fn cursorPtr(child: *const node.Node, index: usize) node.Node {
+    return .{ .cursor = .{ .child = child, .index = index } };
+}
+
+pub fn cursorOwned(allocator: std.mem.Allocator, child: node.Node, index: usize) !node.Node {
+    const ptr = try allocator.create(node.Node);
+    ptr.* = child;
+    return .{ .cursor = .{ .child = ptr, .index = index } };
+}

@@ -37,7 +37,7 @@ Tasks derived from `docs/specification.md` to track coverage and implementation 
     - [x] `filler`
     - [x] `size`
     - [x] `focus`
-    - [ ] cursor modifiers
+    - [x] cursor modifiers
 
 ### Styling
 - [ ] Maintain decorators for typography, color/gradient layers, selection styling, hyperlinks, centering helpers, and `automerge`.
