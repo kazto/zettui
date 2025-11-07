@@ -5,7 +5,7 @@ Tasks derived from `docs/specification.md` to track coverage and implementation 
 ## Overview
 - [x] Mirror `src/` package structure across `dom`, `component`, and `screen`, ensuring public Zig namespaces (e.g., `zet.dom`) re-export the intended API surface.
 - [x] Keep `build.zig` targets current for library, examples, docs, tests, fuzzers, and benchmarks; document standard `zig build` invocations.
-- [ ] Curate `examples/` alongside documentation in `docs/` so demos track the latest module capabilities.
+- [x] Curate `examples/` alongside documentation in `docs/` so demos track the latest module capabilities.
 - [ ] Enforce formatting via `zig fmt` and maintain helper scripts in `tools/` for linting or automation.
 - [ ] Ensure `zig build test`, `zig build fuzz`, and `zig build bench` cover all modules and report coverage gaps.
 
