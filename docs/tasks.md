@@ -34,9 +34,9 @@ Tasks derived from `docs/specification.md` to track coverage and implementation 
   - Flow utilities:
     - [x] `frame`
     - [ ] `flex*`
-    - [ ] `filler`
-    - [ ] `size`
-    - [ ] `focus`
+    - [x] `filler`
+    - [x] `size`
+    - [x] `focus`
     - [ ] cursor modifiers
 
 ### Styling

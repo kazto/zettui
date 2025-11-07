@@ -57,6 +57,8 @@ pub const Node = union(enum) {
     paragraph: Paragraph,
     frame: Frame,
     size: Size,
+    filler: Filler,
+    focus: Focus,
 
     pub fn computeRequirement(self: Node) Requirement {
         return switch (self) {
@@ -79,6 +81,17 @@ pub const Node = union(enum) {
                     .min_width = @max(child_req.min_width, s.width),
                     .min_height = @max(child_req.min_height, s.height),
                 };
+            },
+            .filler => |f| Requirement{
+                .min_width = 0,
+                .min_height = 0,
+                .flex_grow = f.grow,
+                .flex_shrink = f.shrink,
+            },
+            .focus => |fx| blkFocus: {
+                var req = fx.child.*.computeRequirement();
+                req.focus = fx.position;
+                break :blkFocus req;
             },
             .container => |container_node| container_node.computeRequirement(),
             .frame => |f| blockFrame: {
@@ -197,6 +210,14 @@ pub const Node = union(enum) {
                 // Size decorator does not change rendering; it only influences requirements.
                 try s.child.*.render(ctx);
             },
+            .filler => |f| {
+                _ = f;
+                // filler renders nothing by itself
+            },
+            .focus => |fx| {
+                _ = fx;
+                // focus decorator does not affect rendering, only requirement metadata
+            },
             .container => |container_node| try container_node.render(ctx),
             else => {},
         }
@@ -213,6 +234,10 @@ pub const Node = union(enum) {
                 var tmp = s.child.*;
                 tmp.select(selection);
             },
+            .focus => |*fx| {
+                var tmp = fx.child.*;
+                tmp.select(selection);
+            },
             else => selection.* = .{},
         }
     }
@@ -222,6 +247,7 @@ pub const Node = union(enum) {
             .text => |text_node| text_node.content,
             .frame => |f| try f.child.*.getSelectedContent(allocator),
             .size => |s| try s.child.*.getSelectedContent(allocator),
+            .focus => |fx| try fx.child.*.getSelectedContent(allocator),
             else => "",
         };
     }
@@ -278,6 +304,16 @@ pub const Size = struct {
     child: *const Node,
     width: usize = 0,
     height: usize = 0,
+};
+
+pub const Filler = struct {
+    grow: f32 = 1,
+    shrink: f32 = 1,
+};
+
+pub const Focus = struct {
+    child: *const Node,
+    position: FocusPosition = .center,
 };
 
 pub const Container = struct {
@@ -474,4 +510,20 @@ test "size requirement is at least given dims" {
     // width clamps to child's 3, height clamps to child's 1
     try std.testing.expectEqual(@as(usize, 3), r2.min_width);
     try std.testing.expectEqual(@as(usize, 1), r2.min_height);
+}
+
+test "filler has zero min size and positive grow" {
+    const n = Node{ .filler = .{ .grow = 2, .shrink = 0.5 } };
+    const r = n.computeRequirement();
+    try std.testing.expectEqual(@as(usize, 0), r.min_width);
+    try std.testing.expectEqual(@as(usize, 0), r.min_height);
+    try std.testing.expectApproxEqRel(@as(f32, 2.0), r.flex_grow, 0.0001);
+}
+
+test "focus decorator sets requirement focus" {
+    const child = Node{ .text = .{ .content = "hi" } };
+    const n = Node{ .focus = .{ .child = &child, .position = .end } };
+    const r = n.computeRequirement();
+    try std.testing.expect(r.focus != null);
+    try std.testing.expectEqual(FocusPosition.end, r.focus.?);
 }

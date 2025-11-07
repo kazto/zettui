@@ -95,3 +95,17 @@ pub fn sizeOwned(allocator: std.mem.Allocator, child: node.Node, width: usize, h
     ptr.* = child;
     return .{ .size = .{ .child = ptr, .width = width, .height = height } };
 }
+
+pub fn filler(grow: f32) node.Node {
+    return .{ .filler = .{ .grow = grow } };
+}
+
+pub fn focusPtr(child: *const node.Node, pos: node.FocusPosition) node.Node {
+    return .{ .focus = .{ .child = child, .position = pos } };
+}
+
+pub fn focusOwned(allocator: std.mem.Allocator, child: node.Node, pos: node.FocusPosition) !node.Node {
+    const ptr = try allocator.create(node.Node);
+    ptr.* = child;
+    return .{ .focus = .{ .child = ptr, .position = pos } };
+}
