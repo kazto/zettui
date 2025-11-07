@@ -6,6 +6,7 @@ pub const version = "0.0.0-dev";
 
 test "aggregate module tests" {
     _ = @import("dom/node.zig");
+    _ = @import("dom/elements.zig");
     _ = @import("component/widgets.zig");
     _ = @import("screen/screen.zig");
     _ = @import("screen/color.zig");

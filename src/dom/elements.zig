@@ -1,3 +1,4 @@
+const std = @import("std");
 const node = @import("node.zig");
 
 pub fn empty() node.Node {
@@ -64,4 +65,23 @@ pub fn paragraph(content: []const u8, width: usize) node.Node {
 
 pub fn framePtr(child: *const node.Node) node.Node {
     return .{ .frame = .{ .child = child } };
+}
+
+pub fn frameOwned(allocator: std.mem.Allocator, child: node.Node) !node.Node {
+    const ptr = try allocator.create(node.Node);
+    ptr.* = child;
+    return .{ .frame = .{ .child = ptr } };
+}
+
+test "frameOwned wraps child and sets requirement" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const alloc = arena.allocator();
+
+    const child = text("ok");
+    const framed = try frameOwned(alloc, child);
+    const req = framed.computeRequirement();
+    // child 2x1 -> frame 4x3
+    try std.testing.expectEqual(@as(usize, 4), req.min_width);
+    try std.testing.expectEqual(@as(usize, 3), req.min_height);
 }
