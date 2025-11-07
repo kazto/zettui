@@ -25,13 +25,19 @@ Tasks derived from `docs/specification.md` to track coverage and implementation 
   - [x] `separator`
   - [ ] `graph`
   - [ ] `canvas`
-  - [ ] border helpers (beyond simple window title rendering)
+  - [x] border helpers (frame decorator)
 - [ ] Support container combinators (`hbox`, `vbox`, `dbox`, `flexbox`) plus flow utilities (`flex*`, `filler`, `size`, `frame`, `focus`, cursor modifiers) returning fully configured `Node` values.
   - [x] `hbox`
   - [x] `vbox`
   - [ ] `dbox`
   - [ ] `flexbox`
-  - [ ] flow utilities (`flex*`, `filler`, `size`, `frame`, `focus`, cursor modifiers)
+  - Flow utilities:
+    - [x] `frame`
+    - [ ] `flex*`
+    - [ ] `filler`
+    - [ ] `size`
+    - [ ] `focus`
+    - [ ] cursor modifiers
 
 ### Styling
 - [ ] Maintain decorators for typography, color/gradient layers, selection styling, hyperlinks, centering helpers, and `automerge`.
