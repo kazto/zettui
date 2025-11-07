@@ -34,9 +34,11 @@ pub fn main() !void {
         try sp.render(&ctx);
         try stdout.writeAll("\n");
 
-        // Frame around a child node
-        var inner = zettui.dom.elements.text("framed");
-        var fr = zettui.dom.elements.framePtr(&inner);
+        // Frame around a child node (owned)
+        var dom_arena = std.heap.ArenaAllocator.init(allocator);
+        defer dom_arena.deinit();
+        const da = dom_arena.allocator();
+        var fr = try zettui.dom.elements.frameOwned(da, zettui.dom.elements.text("framed"));
         try fr.render(&ctx);
 
         // Paragraph wrapped to width 16
