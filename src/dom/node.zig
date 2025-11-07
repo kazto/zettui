@@ -265,7 +265,8 @@ pub const Node = union(enum) {
             },
             .flexbox => |fb| {
                 var i: usize = 0;
-                for (fb.children) |child| {
+                const kids = if (fb.owned_children) |oc| oc else fb.children;
+                for (kids) |child| {
                     if (i > 0) {
                         switch (fb.direction) {
                             .row => {
@@ -283,7 +284,8 @@ pub const Node = union(enum) {
                 }
             },
             .dbox => |db| {
-                for (db.children) |child| {
+                const kids = if (db.owned_children) |oc| oc else db.children;
+                for (kids) |child| {
                     try child.render(ctx);
                 }
             },
@@ -311,13 +313,15 @@ pub const Node = union(enum) {
                 tmp.select(selection);
             },
             .flexbox => |*fb| {
-                for (fb.children) |child| {
+                const kids = if (fb.owned_children) |oc| oc else fb.children;
+                for (kids) |child| {
                     var tmp = child;
                     tmp.select(selection);
                 }
             },
             .dbox => |*db| {
-                for (db.children) |child| {
+                const kids = if (db.owned_children) |oc| oc else db.children;
+                for (kids) |child| {
                     var tmp = child;
                     tmp.select(selection);
                 }
@@ -344,12 +348,14 @@ pub const Node = union(enum) {
             .focus => |fx| try fx.child.*.getSelectedContent(allocator),
             .flexbox => |fb| blkSel: {
                 // Return first child's content by convention
-                if (fb.children.len == 0) break :blkSel "";
-                break :blkSel try fb.children[0].getSelectedContent(allocator);
+                const kids = if (fb.owned_children) |oc| oc else fb.children;
+                if (kids.len == 0) break :blkSel "";
+                break :blkSel try kids[0].getSelectedContent(allocator);
             },
             .dbox => |db| blkSel2: {
-                if (db.children.len == 0) break :blkSel2 "";
-                break :blkSel2 try db.children[db.children.len - 1].getSelectedContent(allocator);
+                const kids = if (db.owned_children) |oc| oc else db.children;
+                if (kids.len == 0) break :blkSel2 "";
+                break :blkSel2 try kids[kids.len - 1].getSelectedContent(allocator);
             },
             .cursor => |c| blkSel3: {
                 if (c.child) |ch| break :blkSel3 try ch.*.getSelectedContent(allocator);
@@ -430,6 +436,7 @@ pub const Flexbox = struct {
     direction: FlexDirection = .row,
     gap: usize = 0,
     box: Box = .{},
+    owned_children: ?[]Node = null,
 
     pub fn layout(self: Flexbox, allocator: std.mem.Allocator) ![]Box {
         const boxes = try allocator.alloc(Box, self.children.len);
@@ -454,16 +461,31 @@ pub const Flexbox = struct {
         }
         return boxes;
     }
+
+    pub fn applyLayout(self: *Flexbox, allocator: std.mem.Allocator) !void {
+        const boxes = try self.layout(allocator);
+        const owned = try allocator.dupe(Node, self.children);
+        for (owned, 0..) |*child, i| child.setBox(boxes[i]);
+        self.owned_children = owned;
+    }
 };
 
 pub const Dbox = struct {
     children: []const Node = &[_]Node{},
     box: Box = .{},
+    owned_children: ?[]Node = null,
 
     pub fn layout(self: Dbox, allocator: std.mem.Allocator) ![]Box {
         const boxes = try allocator.alloc(Box, self.children.len);
         for (boxes) |*b| b.* = self.box;
         return boxes;
+    }
+
+    pub fn applyLayout(self: *Dbox, allocator: std.mem.Allocator) !void {
+        const boxes = try self.layout(allocator);
+        const owned = try allocator.dupe(Node, self.children);
+        for (owned, 0..) |*child, i| child.setBox(boxes[i]);
+        self.owned_children = owned;
     }
 };
 
@@ -476,6 +498,7 @@ pub const Container = struct {
     children: []const Node = &[_]Node{},
     box: Box = .{},
     orientation: Orientation = .vertical,
+    owned_children: ?[]Node = null,
 
     pub fn computeRequirement(self: Container) Requirement {
         var req = Requirement{};
@@ -499,9 +522,8 @@ pub const Container = struct {
     }
 
     pub fn render(self: Container, ctx: *RenderContext) anyerror!void {
-        for (self.children) |child| {
-            try child.render(ctx);
-        }
+        const kids = if (self.owned_children) |oc| oc else self.children;
+        for (kids) |child| try child.render(ctx);
     }
 
     pub fn layout(self: Container, allocator: std.mem.Allocator) ![]Box {
@@ -528,17 +550,26 @@ pub const Container = struct {
         return boxes;
     }
 
+    pub fn applyLayout(self: *Container, allocator: std.mem.Allocator) !void {
+        const boxes = try self.layout(allocator);
+        const owned = try allocator.dupe(Node, self.children);
+        for (owned, 0..) |*child, i| {
+            child.setBox(boxes[i]);
+        }
+        self.owned_children = owned;
+    }
+
     pub fn select(self: *Container, selection: *Selection) void {
-        for (self.children) |child| {
+        const kids = if (self.owned_children) |oc| oc else self.children;
+        for (kids) |child| {
             var tmp = child;
             tmp.select(selection);
         }
     }
 
     pub fn check(self: Container) void {
-        for (self.children) |child| {
-            child.check();
-        }
+        const kids = if (self.owned_children) |oc| oc else self.children;
+        for (kids) |child| child.check();
     }
 };
 
@@ -825,4 +856,24 @@ test "flexbox row layout assigns consecutive boxes with gaps" {
     try std.testing.expectEqual(@as(usize, 2), boxes.len);
     try std.testing.expectEqual(@as(i32, 0), boxes[0].origin_x);
     try std.testing.expectEqual(@as(i32, 2), boxes[1].origin_x); // 1 width + 1 gap
+}
+
+test "container applyLayout sets owned child boxes" {
+    var node = Node{ .container = .{
+        .orientation = .horizontal,
+        .children = &[_]Node{
+            .{ .text = .{ .content = "aaa" } },
+            .{ .text = .{ .content = "bb" } },
+        },
+    } };
+    node.setBox(.{ .origin_x = 0, .origin_y = 0, .width = 10, .height = 2 });
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var cont_ptr: *Container = switch (node) {
+        .container => |*c| c,
+        else => unreachable,
+    };
+    try cont_ptr.applyLayout(arena.allocator());
+    const kids = cont_ptr.owned_children.?;
+    try std.testing.expectEqual(@as(usize, 2), kids.len);
 }
