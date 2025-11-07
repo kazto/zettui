@@ -56,6 +56,7 @@ pub const Node = union(enum) {
     spinner: Spinner,
     paragraph: Paragraph,
     frame: Frame,
+    size: Size,
 
     pub fn computeRequirement(self: Node) Requirement {
         return switch (self) {
@@ -71,6 +72,13 @@ pub const Node = union(enum) {
                 const w: usize = if (p.width == 0) 1 else p.width;
                 const lines: usize = (p.content.len + w - 1) / w;
                 break :blk Requirement{ .min_width = w, .min_height = if (lines == 0) 1 else lines };
+            },
+            .size => |s| blkSize: {
+                const child_req = s.child.*.computeRequirement();
+                break :blkSize Requirement{
+                    .min_width = @max(child_req.min_width, s.width),
+                    .min_height = @max(child_req.min_height, s.height),
+                };
             },
             .container => |container_node| container_node.computeRequirement(),
             .frame => |f| blockFrame: {
@@ -185,6 +193,10 @@ pub const Node = union(enum) {
                 while (i < inner_w) : (i += 1) try ctxWrite(ctx, "\xE2\x94\x80"); // ─
                 try ctxWrite(ctx, "\xE2\x94\x98\n"); // ┘
             },
+            .size => |s| {
+                // Size decorator does not change rendering; it only influences requirements.
+                try s.child.*.render(ctx);
+            },
             .container => |container_node| try container_node.render(ctx),
             else => {},
         }
@@ -197,6 +209,10 @@ pub const Node = union(enum) {
                 var tmp = f.child.*;
                 tmp.select(selection);
             },
+            .size => |*s| {
+                var tmp = s.child.*;
+                tmp.select(selection);
+            },
             else => selection.* = .{},
         }
     }
@@ -205,6 +221,7 @@ pub const Node = union(enum) {
         return switch (self) {
             .text => |text_node| text_node.content,
             .frame => |f| try f.child.*.getSelectedContent(allocator),
+            .size => |s| try s.child.*.getSelectedContent(allocator),
             else => "",
         };
     }
@@ -255,6 +272,12 @@ pub const Paragraph = struct {
 
 pub const Frame = struct {
     child: *const Node,
+};
+
+pub const Size = struct {
+    child: *const Node,
+    width: usize = 0,
+    height: usize = 0,
 };
 
 pub const Container = struct {
@@ -437,4 +460,18 @@ test "frame renders paragraph with per-line borders and padding" {
         "\xE2\x94\x82o   \xE2\x94\x82\n" ++
         "\xE2\x94\x94\xE2\x94\x80\xE2\x94\x80\xE2\x94\x80\xE2\x94\x80\xE2\x94\x98\n";
     try std.testing.expectEqualStrings(expected, managed.items);
+}
+
+test "size requirement is at least given dims" {
+    const child = Node{ .text = .{ .content = "abc" } }; // 3x1
+    const n1 = Node{ .size = .{ .child = &child, .width = 10, .height = 2 } };
+    const r1 = n1.computeRequirement();
+    try std.testing.expectEqual(@as(usize, 10), r1.min_width);
+    try std.testing.expectEqual(@as(usize, 2), r1.min_height);
+
+    const n2 = Node{ .size = .{ .child = &child, .width = 2, .height = 0 } };
+    const r2 = n2.computeRequirement();
+    // width clamps to child's 3, height clamps to child's 1
+    try std.testing.expectEqual(@as(usize, 3), r2.min_width);
+    try std.testing.expectEqual(@as(usize, 1), r2.min_height);
 }

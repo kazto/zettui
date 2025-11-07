@@ -85,3 +85,13 @@ test "frameOwned wraps child and sets requirement" {
     try std.testing.expectEqual(@as(usize, 4), req.min_width);
     try std.testing.expectEqual(@as(usize, 3), req.min_height);
 }
+
+pub fn sizePtr(child: *const node.Node, width: usize, height: usize) node.Node {
+    return .{ .size = .{ .child = child, .width = width, .height = height } };
+}
+
+pub fn sizeOwned(allocator: std.mem.Allocator, child: node.Node, width: usize, height: usize) !node.Node {
+    const ptr = try allocator.create(node.Node);
+    ptr.* = child;
+    return .{ .size = .{ .child = ptr, .width = width, .height = height } };
+}
