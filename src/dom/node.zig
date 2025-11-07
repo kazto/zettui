@@ -23,6 +23,10 @@ pub const Selection = struct {
 pub const RenderContext = struct {
     allow_hyperlinks: bool = false,
     sink: ?Sink = null,
+    drawer: ?Drawer = null,
+    origin_x: i32 = 0,
+    origin_y: i32 = 0,
+    allocator: ?std.mem.Allocator = null,
 };
 
 pub const Sink = struct {
@@ -167,15 +171,28 @@ pub const Node = union(enum) {
     pub fn render(self: Node, ctx: *RenderContext) anyerror!void {
         switch (self) {
             .text => |text_node| {
-                try ctxWrite(ctx, text_node.content);
+                if (ctx.drawer != null) {
+                    try ctxDraw(ctx, ctx.origin_x, ctx.origin_y, text_node.content);
+                } else {
+                    try ctxWrite(ctx, text_node.content);
+                }
             },
             .separator => {
                 try ctxWrite(ctx, "---\n");
             },
             .window => |w| {
-                try ctxWrite(ctx, "[");
-                try ctxWrite(ctx, w.title);
-                try ctxWrite(ctx, "]");
+                if (ctx.drawer != null) {
+                    var buf = std.array_list.Managed(u8).init(std.heap.page_allocator);
+                    defer buf.deinit();
+                    try buf.appendSlice("[");
+                    try buf.appendSlice(w.title);
+                    try buf.appendSlice("]");
+                    try ctxDraw(ctx, ctx.origin_x, ctx.origin_y, buf.items);
+                } else {
+                    try ctxWrite(ctx, "[");
+                    try ctxWrite(ctx, w.title);
+                    try ctxWrite(ctx, "]");
+                }
             },
             .gauge => |g| {
                 const total = if (g.width < 3) 3 else g.width;
@@ -183,24 +200,48 @@ pub const Node = union(enum) {
                 const clamped = std.math.clamp(g.fraction, 0.0, 1.0);
                 const filled: usize = @intFromFloat(@floor(@as(f32, @floatFromInt(inner)) * clamped + 0.0001));
                 const empty: usize = inner - filled;
-                try ctxWrite(ctx, "[");
-                var i: usize = 0;
-                while (i < filled) : (i += 1) try ctxWrite(ctx, "#");
-                i = 0;
-                while (i < empty) : (i += 1) try ctxWrite(ctx, ".");
-                try ctxWrite(ctx, "]");
+                if (ctx.drawer != null) {
+                    var buf = std.array_list.Managed(u8).init(std.heap.page_allocator);
+                    defer buf.deinit();
+                    try buf.appendSlice("[");
+                    var i: usize = 0;
+                    while (i < filled) : (i += 1) try buf.append('#');
+                    i = 0;
+                    while (i < empty) : (i += 1) try buf.append('.');
+                    try buf.appendSlice("]");
+                    try ctxDraw(ctx, ctx.origin_x, ctx.origin_y, buf.items);
+                } else {
+                    try ctxWrite(ctx, "[");
+                    var i: usize = 0;
+                    while (i < filled) : (i += 1) try ctxWrite(ctx, "#");
+                    i = 0;
+                    while (i < empty) : (i += 1) try ctxWrite(ctx, ".");
+                    try ctxWrite(ctx, "]");
+                }
             },
             .spinner => |s| {
                 try ctxWrite(ctx, s.currentFrame());
             },
             .paragraph => |p| {
                 const w: usize = if (p.width == 0) 1 else p.width;
-                var i: usize = 0;
-                while (i < p.content.len) : (i += 1) {
-                    if (w > 0 and i > 0 and (i % w) == 0) {
-                        try ctxWrite(ctx, "\n");
+                if (ctx.drawer != null) {
+                    var idx: usize = 0;
+                    var row: i32 = ctx.origin_y;
+                    while (idx < p.content.len) {
+                        const rem = p.content.len - idx;
+                        const take = if (rem < w) rem else w;
+                        try ctxDraw(ctx, ctx.origin_x, row, p.content[idx .. idx + take]);
+                        idx += take;
+                        row += 1;
                     }
-                    try ctxWrite(ctx, p.content[i .. i + 1]);
+                } else {
+                    var i: usize = 0;
+                    while (i < p.content.len) : (i += 1) {
+                        if (w > 0 and i > 0 and (i % w) == 0) {
+                            try ctxWrite(ctx, "\n");
+                        }
+                        try ctxWrite(ctx, p.content[i .. i + 1]);
+                    }
                 }
             },
             .custom => |renderer| try @call(.auto, renderer.callback, .{ renderer.user_data, ctx }),
@@ -266,33 +307,80 @@ pub const Node = union(enum) {
             .flexbox => |fb| {
                 var i: usize = 0;
                 const kids = if (fb.owned_children) |oc| oc else fb.children;
-                for (kids) |child| {
-                    if (i > 0) {
-                        switch (fb.direction) {
-                            .row => {
-                                var g: usize = 0;
-                                while (g < fb.gap) : (g += 1) try ctxWrite(ctx, " ");
-                            },
-                            .column => {
-                                var g2: usize = 0;
-                                while (g2 < fb.gap) : (g2 += 1) try ctxWrite(ctx, "\n");
-                            },
+                if (ctx.drawer != null and ctx.allocator != null) {
+                    const alloc = ctx.allocator.?;
+                    const boxes = try fb.layout(alloc);
+                    for (kids, 0..) |child, idx| {
+                        if (i > 0) {
+                            switch (fb.direction) {
+                                .row => {
+                                    var g: usize = 0;
+                                    while (g < fb.gap) : (g += 1) try ctxWrite(ctx, " ");
+                                },
+                                .column => {
+                                    var g2: usize = 0;
+                                    while (g2 < fb.gap) : (g2 += 1) try ctxWrite(ctx, "\n");
+                                },
+                            }
                         }
+                        var child_ctx = ctx.*;
+                        child_ctx.origin_x = boxes[idx].origin_x;
+                        child_ctx.origin_y = boxes[idx].origin_y;
+                        try child.render(&child_ctx);
+                        i += 1;
                     }
-                    try child.render(ctx);
-                    i += 1;
+                } else {
+                    for (kids) |child| {
+                        if (i > 0) {
+                            switch (fb.direction) {
+                                .row => {
+                                    var g: usize = 0;
+                                    while (g < fb.gap) : (g += 1) try ctxWrite(ctx, " ");
+                                },
+                                .column => {
+                                    var g2: usize = 0;
+                                    while (g2 < fb.gap) : (g2 += 1) try ctxWrite(ctx, "\n");
+                                },
+                            }
+                        }
+                        try child.render(ctx);
+                        i += 1;
+                    }
                 }
             },
             .dbox => |db| {
                 const kids = if (db.owned_children) |oc| oc else db.children;
-                for (kids) |child| {
-                    try child.render(ctx);
+                if (ctx.drawer != null and ctx.allocator != null) {
+                    const alloc = ctx.allocator.?;
+                    const boxes = try db.layout(alloc);
+                    for (kids, 0..) |child, idx| {
+                        var child_ctx = ctx.*;
+                        child_ctx.origin_x = boxes[idx].origin_x;
+                        child_ctx.origin_y = boxes[idx].origin_y;
+                        try child.render(&child_ctx);
+                    }
+                } else {
+                    for (kids) |child| try child.render(ctx);
                 }
             },
             .cursor => |c| {
                 if (c.child) |ch| try ch.*.render(ctx);
             },
-            .container => |container_node| try container_node.render(ctx),
+            .container => |container_node| {
+                const kids = if (container_node.owned_children) |oc| oc else container_node.children;
+                if (ctx.drawer != null and ctx.allocator != null) {
+                    const alloc = ctx.allocator.?;
+                    const boxes = try container_node.layout(alloc);
+                    for (kids, 0..) |child, idx| {
+                        var child_ctx = ctx.*;
+                        child_ctx.origin_x = boxes[idx].origin_x;
+                        child_ctx.origin_y = boxes[idx].origin_y;
+                        try child.render(&child_ctx);
+                    }
+                } else {
+                    try container_node.render(ctx);
+                }
+            },
             else => {},
         }
     }
@@ -876,4 +964,16 @@ test "container applyLayout sets owned child boxes" {
     try cont_ptr.applyLayout(arena.allocator());
     const kids = cont_ptr.owned_children.?;
     try std.testing.expectEqual(@as(usize, 2), kids.len);
+}
+pub const Drawer = struct {
+    user_data: *anyopaque,
+    drawText: *const fn (user_data: *anyopaque, x: i32, y: i32, text: []const u8) anyerror!void,
+};
+
+fn ctxDraw(ctx: *RenderContext, x: i32, y: i32, text: []const u8) !void {
+    if (ctx.drawer) |d| {
+        try d.drawText(d.user_data, x, y, text);
+    } else {
+        try ctxWrite(ctx, text);
+    }
 }

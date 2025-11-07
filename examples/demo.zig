@@ -68,4 +68,33 @@ pub fn main() !void {
     const tog = try zettui.component.widgets.toggle(a, .{ .on_label = "ON", .off_label = "OFF", .on = true });
     try tog.render();
     try stdout.writeAll("\n");
+
+    // DOM rendering via Screen drawer (coordinate-aware)
+    try stdout.writeAll("\nDOM drawer demo (Screen):\n");
+    screen.clear(.{ .glyph = " ", .fg = 0xFFFFFF, .bg = 0x000000 });
+
+    const Adapter = struct {
+        fn draw(user_data: *anyopaque, x: i32, y: i32, text: []const u8) anyerror!void {
+            const scr = @as(*zettui.screen.Screen, @ptrCast(@alignCast(user_data)));
+            if (x >= 0 and y >= 0) {
+                scr.drawString(@as(usize, @intCast(x)), @as(usize, @intCast(y)), text);
+            }
+        }
+    };
+
+    var ctx2: zettui.dom.RenderContext = .{
+        .sink = null,
+        .drawer = .{ .user_data = @as(*anyopaque, @ptrCast(&screen)), .drawText = Adapter.draw },
+        .origin_x = 1,
+        .origin_y = 0,
+        .allocator = a,
+    };
+
+    const row = zettui.dom.elements.flexboxRow(&[_]zettui.dom.Node{
+        zettui.dom.elements.text("Hello"),
+        zettui.dom.elements.gaugeWidth(0.6, 10),
+        zettui.dom.elements.paragraph("wrap", 2),
+    }, 1);
+    try row.render(&ctx2);
+    try screen.present(stdout);
 }
