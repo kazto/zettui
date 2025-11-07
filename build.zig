@@ -52,6 +52,22 @@ pub fn build(b: *std.Build) void {
     const run_spin_step = b.step("run:spin", "Run the spinner animation demo");
     run_spin_step.dependOn(&run_spin.step);
 
+    // Layout demo using DOM + Screen drawer
+    const layout_module = b.createModule(.{
+        .root_source_file = b.path("examples/layout_demo.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "zettui", .module = zettui_module }},
+    });
+    const layout_exe = b.addExecutable(.{
+        .name = "zettui-layout",
+        .root_module = layout_module,
+    });
+    b.installArtifact(layout_exe);
+    const run_layout = b.addRunArtifact(layout_exe);
+    const run_layout_step = b.step("run:layout", "Run the layout demo (DOM -> Screen drawer)");
+    run_layout_step.dependOn(&run_layout.step);
+
     const tests_module = b.createModule(.{
         .root_source_file = b.path("src/lib.zig"),
         .target = target,
