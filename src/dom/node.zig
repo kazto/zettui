@@ -60,6 +60,7 @@ pub const Node = union(enum) {
     filler: Filler,
     focus: Focus,
     flexbox: Flexbox,
+    dbox: Dbox,
 
     pub fn computeRequirement(self: Node) Requirement {
         return switch (self) {
@@ -119,6 +120,15 @@ pub const Node = union(enum) {
                     },
                 }
                 break :blkFlex req;
+            },
+            .dbox => |db| blkD: {
+                var req = Requirement{};
+                for (db.children) |child| {
+                    const cr = child.computeRequirement();
+                    req.min_width = @max(req.min_width, cr.min_width);
+                    req.min_height = @max(req.min_height, cr.min_height);
+                }
+                break :blkD req;
             },
             .container => |container_node| container_node.computeRequirement(),
             .frame => |f| blockFrame: {
@@ -264,6 +274,11 @@ pub const Node = union(enum) {
                     i += 1;
                 }
             },
+            .dbox => |db| {
+                for (db.children) |child| {
+                    try child.render(ctx);
+                }
+            },
             .container => |container_node| try container_node.render(ctx),
             else => {},
         }
@@ -289,6 +304,9 @@ pub const Node = union(enum) {
                     child.select(selection);
                 }
             },
+            .dbox => |*db| {
+                for (db.children) |*child| child.select(selection);
+            },
             else => selection.* = .{},
         }
     }
@@ -303,6 +321,10 @@ pub const Node = union(enum) {
                 // Return first child's content by convention
                 if (fb.children.len == 0) break :blkSel "";
                 break :blkSel try fb.children[0].getSelectedContent(allocator);
+            },
+            .dbox => |db| blkSel2: {
+                if (db.children.len == 0) break :blkSel2 "";
+                break :blkSel2 try db.children[db.children.len - 1].getSelectedContent(allocator);
             },
             else => "",
         };
@@ -378,6 +400,10 @@ pub const Flexbox = struct {
     children: []const Node = &[_]Node{},
     direction: FlexDirection = .row,
     gap: usize = 0,
+};
+
+pub const Dbox = struct {
+    children: []const Node = &[_]Node{},
 };
 
 pub const Container = struct {
@@ -618,4 +644,18 @@ test "flexbox column aggregates heights plus gap" {
     const r = n.computeRequirement();
     try std.testing.expectEqual(@as(usize, 4), r.min_width);
     try std.testing.expectEqual(@as(usize, 4), r.min_height); // 1 + 2 + 1
+}
+
+test "dbox aggregates by max width/height" {
+    const n = Node{
+        .dbox = .{
+            .children = &[_]Node{
+                .{ .text = .{ .content = "abc" } }, // 3x1
+                .{ .text = .{ .content = "toolong" } }, // 7x1
+            },
+        },
+    };
+    const r = n.computeRequirement();
+    try std.testing.expectEqual(@as(usize, 7), r.min_width);
+    try std.testing.expectEqual(@as(usize, 1), r.min_height);
 }

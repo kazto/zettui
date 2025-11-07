@@ -29,7 +29,7 @@ Tasks derived from `docs/specification.md` to track coverage and implementation 
 - [ ] Support container combinators (`hbox`, `vbox`, `dbox`, `flexbox`) plus flow utilities (`flex*`, `filler`, `size`, `frame`, `focus`, cursor modifiers) returning fully configured `Node` values.
   - [x] `hbox`
   - [x] `vbox`
-  - [ ] `dbox`
+  - [x] `dbox`
   - [x] `flexbox`
   - Flow utilities:
     - [x] `frame`

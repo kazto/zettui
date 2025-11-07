@@ -117,3 +117,7 @@ pub fn flexboxRow(children: []const node.Node, gap: usize) node.Node {
 pub fn flexboxColumn(children: []const node.Node, gap: usize) node.Node {
     return .{ .flexbox = .{ .children = children, .direction = .column, .gap = gap } };
 }
+
+pub fn dbox(children: []const node.Node) node.Node {
+    return .{ .dbox = .{ .children = children } };
+}
