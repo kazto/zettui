@@ -34,6 +34,11 @@ pub fn main() !void {
         try sp.render(&ctx);
         try stdout.writeAll("\n");
 
+        // Frame around a child node
+        var inner = zettui.dom.elements.text("framed");
+        var fr = zettui.dom.elements.framePtr(&inner);
+        try fr.render(&ctx);
+
         // Paragraph wrapped to width 16
         try stdout.writeAll("Paragraph (w=16):\n");
         var para = zettui.dom.elements.paragraph(

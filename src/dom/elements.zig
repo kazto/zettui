@@ -61,3 +61,7 @@ pub fn spinnerAdvance(n: *node.Node) bool {
 pub fn paragraph(content: []const u8, width: usize) node.Node {
     return .{ .paragraph = .{ .content = content, .width = width } };
 }
+
+pub fn framePtr(child: *const node.Node) node.Node {
+    return .{ .frame = .{ .child = child } };
+}

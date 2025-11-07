@@ -41,6 +41,7 @@ pub const Node = union(enum) {
     gauge: Gauge,
     spinner: Spinner,
     paragraph: Paragraph,
+    frame: Frame,
 
     pub fn computeRequirement(self: Node) Requirement {
         return switch (self) {
@@ -58,6 +59,13 @@ pub const Node = union(enum) {
                 break :blk Requirement{ .min_width = w, .min_height = if (lines == 0) 1 else lines };
             },
             .container => |container_node| container_node.computeRequirement(),
+            .frame => |f| blockFrame: {
+                const child_req = f.child.computeRequirement();
+                break :blockFrame Requirement{
+                    .min_width = child_req.min_width + 2,
+                    .min_height = child_req.min_height + 2,
+                };
+            },
             else => Requirement{},
         };
     }
@@ -118,6 +126,25 @@ pub const Node = union(enum) {
                 }
             },
             .custom => |renderer| try @call(.auto, renderer.callback, .{ renderer.user_data, ctx }),
+            .frame => |f| {
+                const stdout = std.fs.File.stdout();
+                const req = f.child.*.computeRequirement();
+                const inner_w: usize = req.min_width;
+                // top border: ┌───┐
+                try stdout.writeAll("\xE2\x94\x8C"); // ┌
+                var i: usize = 0;
+                while (i < inner_w) : (i += 1) try stdout.writeAll("\xE2\x94\x80"); // ─
+                try stdout.writeAll("\xE2\x94\x90\n"); // ┐
+                // middle: │child│ (child may render multiple lines)
+                try stdout.writeAll("\xE2\x94\x82"); // │
+                try f.child.*.render(ctx);
+                try stdout.writeAll("\xE2\x94\x82\n"); // │
+                // bottom border: └───┘
+                try stdout.writeAll("\xE2\x94\x94"); // └
+                i = 0;
+                while (i < inner_w) : (i += 1) try stdout.writeAll("\xE2\x94\x80"); // ─
+                try stdout.writeAll("\xE2\x94\x98\n"); // ┘
+            },
             .container => |container_node| try container_node.render(ctx),
             else => {},
         }
@@ -126,14 +153,18 @@ pub const Node = union(enum) {
     pub fn select(self: *Node, selection: *Selection) void {
         switch (self.*) {
             .container => |*container_node| container_node.select(selection),
+            .frame => |*f| {
+                var tmp = f.child.*;
+                tmp.select(selection);
+            },
             else => selection.* = .{},
         }
     }
 
     pub fn getSelectedContent(self: Node, allocator: std.mem.Allocator) ![]const u8 {
-        _ = allocator;
         return switch (self) {
             .text => |text_node| text_node.content,
+            .frame => |f| try f.child.*.getSelectedContent(allocator),
             else => "",
         };
     }
@@ -180,6 +211,10 @@ pub const Spinner = struct {
 pub const Paragraph = struct {
     content: []const u8,
     width: usize = 40,
+};
+
+pub const Frame = struct {
+    child: *const Node,
 };
 
 pub const Container = struct {
@@ -328,5 +363,13 @@ test "paragraph requirement uses width and line count" {
     const p = Node{ .paragraph = .{ .content = "hello world", .width = 5 } };
     const req = p.computeRequirement();
     try std.testing.expectEqual(@as(usize, 5), req.min_width);
+    try std.testing.expectEqual(@as(usize, 3), req.min_height);
+}
+
+test "frame requirement adds borders" {
+    const child = Node{ .text = .{ .content = "hi" } };
+    const n = Node{ .frame = .{ .child = &child } };
+    const req = n.computeRequirement();
+    try std.testing.expectEqual(@as(usize, 4), req.min_width);
     try std.testing.expectEqual(@as(usize, 3), req.min_height);
 }
