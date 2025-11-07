@@ -52,6 +52,7 @@ Tasks derived from `docs/specification.md` to track coverage and implementation 
   - [x] Button
   - [x] Checkbox
   - [x] Toggle
+  - [x] Text input (single-line)
   - [ ] Text inputs (placeholder/password/multiline)
   - [ ] Sliders
   - [ ] Radio boxes

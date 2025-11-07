@@ -11,6 +11,14 @@ const TogglePayload = struct {
     off_label: []const u8,
 };
 
+const InputState = struct {
+    buf: std.ArrayList(u8),
+    gpa: std.mem.Allocator,
+    placeholder: []const u8,
+    is_password: bool,
+    multiline: bool,
+};
+
 pub fn button(allocator: std.mem.Allocator, opts: options.ButtonOptions) !base.Component {
     const owned_label = try allocator.dupe(u8, opts.label);
     const component_ptr = try allocator.create(base.ComponentBase);
@@ -101,6 +109,74 @@ fn containerAnimate(self: *base.ComponentBase, delta_time: f32) void {
     for (self.children) |child| {
         child.base.animate(delta_time);
     }
+}
+
+pub fn textInput(allocator: std.mem.Allocator, opts: options.InputOptions) !base.Component {
+    const state_ptr = try allocator.create(InputState);
+    state_ptr.* = .{
+        .buf = try std.ArrayList(u8).initCapacity(allocator, 16),
+        .gpa = allocator,
+        .placeholder = try allocator.dupe(u8, opts.placeholder),
+        .is_password = opts.is_password,
+        .multiline = opts.multiline,
+    };
+
+    const component_ptr = try allocator.create(base.ComponentBase);
+    component_ptr.* = base.ComponentBase{
+        .text_cache = "",
+        .user_data = @as(*anyopaque, @ptrCast(state_ptr)),
+        .renderFn = inputRender,
+        .eventFn = inputEvent,
+        .animationFn = null,
+        .children = &[_]base.Component{},
+        .focus_index = 0,
+    };
+    return .{ .base = component_ptr };
+}
+
+fn inputRender(self: *base.ComponentBase) anyerror!void {
+    const stdout = std.fs.File.stdout();
+    const st = @as(*InputState, @ptrCast(@alignCast(self.user_data.?)));
+    if (st.buf.items.len == 0 and st.placeholder.len > 0) {
+        try stdout.writeAll(st.placeholder);
+        return;
+    }
+    if (st.is_password) {
+        var i: usize = 0;
+        while (i < st.buf.items.len) : (i += 1) try stdout.writeAll("*");
+    } else {
+        try stdout.writeAll(st.buf.items);
+    }
+}
+
+fn inputEvent(self: *base.ComponentBase, event: events.Event) bool {
+    const st = @as(*InputState, @ptrCast(@alignCast(self.user_data.?)));
+    const allocator = st.gpa;
+    switch (event) {
+        .key => |k| {
+            const cp = k.codepoint;
+            // backspace (8) or delete (127)
+            if (cp == 8 or cp == 127) {
+                if (st.buf.items.len > 0) _ = st.buf.pop();
+                return true;
+            }
+            // newline
+            if (cp == '\n') {
+                if (st.multiline) {
+                    st.buf.append(allocator, '\n') catch return false;
+                    return true;
+                }
+                return false;
+            }
+            // append ASCII subset (simple demo)
+            if (cp >= 32 and cp <= 126) {
+                st.buf.append(allocator, @as(u8, @intCast(cp))) catch return false;
+                return true;
+            }
+        },
+        else => {},
+    }
+    return false;
 }
 
 pub fn checkbox(allocator: std.mem.Allocator, opts: options.CheckboxOptions) !base.Component {
@@ -238,4 +314,19 @@ test "checkbox toggles on space key" {
 
     const state = @as(*CheckboxState, @ptrCast(cmp.base.user_data.?));
     try std.testing.expect(state.checked);
+}
+
+test "text input appends and backspaces" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const ti = try textInput(allocator, .{ .placeholder = "Name" });
+    _ = ti.onEvent(.{ .key = .{ .codepoint = 'a' } });
+    _ = ti.onEvent(.{ .key = .{ .codepoint = 'b' } });
+    _ = ti.onEvent(.{ .key = .{ .codepoint = 8 } }); // backspace
+
+    const st = @as(*InputState, @ptrCast(@alignCast(ti.base.user_data.?)));
+    try std.testing.expectEqual(@as(usize, 1), st.buf.items.len);
+    try std.testing.expectEqual(@as(u8, 'a'), st.buf.items[0]);
 }
