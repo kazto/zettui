@@ -430,11 +430,41 @@ pub const Flexbox = struct {
     direction: FlexDirection = .row,
     gap: usize = 0,
     box: Box = .{},
+
+    pub fn layout(self: Flexbox, allocator: std.mem.Allocator) ![]Box {
+        const boxes = try allocator.alloc(Box, self.children.len);
+        var x: i32 = self.box.origin_x;
+        var y: i32 = self.box.origin_y;
+        var i: usize = 0;
+        switch (self.direction) {
+            .row => {
+                while (i < self.children.len) : (i += 1) {
+                    const cr = self.children[i].computeRequirement();
+                    boxes[i] = .{ .origin_x = x, .origin_y = y, .width = @intCast(cr.min_width), .height = @intCast(@min(@as(usize, self.box.height), cr.min_height)) };
+                    x += @as(i32, @intCast(cr.min_width + self.gap));
+                }
+            },
+            .column => {
+                while (i < self.children.len) : (i += 1) {
+                    const cr = self.children[i].computeRequirement();
+                    boxes[i] = .{ .origin_x = x, .origin_y = y, .width = @intCast(@min(@as(usize, self.box.width), cr.min_width)), .height = @intCast(cr.min_height) };
+                    y += @as(i32, @intCast(cr.min_height + self.gap));
+                }
+            },
+        }
+        return boxes;
+    }
 };
 
 pub const Dbox = struct {
     children: []const Node = &[_]Node{},
     box: Box = .{},
+
+    pub fn layout(self: Dbox, allocator: std.mem.Allocator) ![]Box {
+        const boxes = try allocator.alloc(Box, self.children.len);
+        for (boxes) |*b| b.* = self.box;
+        return boxes;
+    }
 };
 
 pub const Cursor = struct {
@@ -472,6 +502,30 @@ pub const Container = struct {
         for (self.children) |child| {
             try child.render(ctx);
         }
+    }
+
+    pub fn layout(self: Container, allocator: std.mem.Allocator) ![]Box {
+        const boxes = try allocator.alloc(Box, self.children.len);
+        var x: i32 = self.box.origin_x;
+        var y: i32 = self.box.origin_y;
+        var i: usize = 0;
+        switch (self.orientation) {
+            .vertical => {
+                while (i < self.children.len) : (i += 1) {
+                    const cr = self.children[i].computeRequirement();
+                    boxes[i] = .{ .origin_x = x, .origin_y = y, .width = self.box.width, .height = @intCast(cr.min_height) };
+                    y += @as(i32, @intCast(cr.min_height));
+                }
+            },
+            .horizontal => {
+                while (i < self.children.len) : (i += 1) {
+                    const cr = self.children[i].computeRequirement();
+                    boxes[i] = .{ .origin_x = x, .origin_y = y, .width = @intCast(cr.min_width), .height = self.box.height };
+                    x += @as(i32, @intCast(cr.min_width));
+                }
+            },
+        }
+        return boxes;
     }
 
     pub fn select(self: *Container, selection: *Selection) void {
@@ -726,4 +780,49 @@ test "dbox setBox updates own box" {
         else => unreachable,
     };
     try std.testing.expectEqual(b, observed);
+}
+
+test "container vertical layout assigns stacked boxes" {
+    var node = Node{ .container = .{
+        .orientation = .vertical,
+        .children = &[_]Node{
+            .{ .text = .{ .content = "aa" } },
+            .{ .text = .{ .content = "bbbb" } },
+        },
+    } };
+    node.setBox(.{ .origin_x = 0, .origin_y = 0, .width = 10, .height = 5 });
+    const cont = switch (node) {
+        .container => |c| c,
+        else => unreachable,
+    };
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const boxes = try cont.layout(arena.allocator());
+    try std.testing.expectEqual(@as(usize, 2), boxes.len);
+    try std.testing.expectEqual(@as(u32, 10), boxes[0].width);
+    try std.testing.expectEqual(@as(u32, 1), boxes[0].height);
+    try std.testing.expectEqual(@as(i32, 1), boxes[1].origin_y);
+    try std.testing.expectEqual(@as(u32, 1), boxes[1].height);
+}
+
+test "flexbox row layout assigns consecutive boxes with gaps" {
+    var node = Node{ .flexbox = .{
+        .direction = .row,
+        .gap = 1,
+        .children = &[_]Node{
+            .{ .text = .{ .content = "a" } },
+            .{ .text = .{ .content = "bc" } },
+        },
+    } };
+    node.setBox(.{ .origin_x = 0, .origin_y = 0, .width = 10, .height = 2 });
+    const fb = switch (node) {
+        .flexbox => |f| f,
+        else => unreachable,
+    };
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const boxes = try fb.layout(arena.allocator());
+    try std.testing.expectEqual(@as(usize, 2), boxes.len);
+    try std.testing.expectEqual(@as(i32, 0), boxes[0].origin_x);
+    try std.testing.expectEqual(@as(i32, 2), boxes[1].origin_x); // 1 width + 1 gap
 }
