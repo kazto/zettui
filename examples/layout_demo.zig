@@ -49,4 +49,32 @@ pub fn main() !void {
 
     const out = std.fs.File.stdout();
     try screen.present(out);
+
+    // Show focus + cursor decorators: render text and a caret using selection info
+    try out.writeAll("\nFocus + Cursor decorators demo:\n");
+    screen.clear(.{ .glyph = " ", .fg = 0xFFFFFF, .bg = 0x000000 });
+
+    const editable = zettui.dom.elements.text("Edit me");
+    // Wrap with focus and cursor (index 4)
+    const focused = try zettui.dom.elements.focusOwned(a, editable, .center);
+    var with_cursor = try zettui.dom.elements.cursorOwned(a, focused, 4);
+
+    // Render at (2,2)
+    var ctx3: zettui.dom.RenderContext = .{
+        .sink = null,
+        .drawer = .{ .user_data = @as(*anyopaque, @ptrCast(&screen)), .drawText = Adapter.draw },
+        .origin_x = 2,
+        .origin_y = 2,
+        .allocator = a,
+    };
+    try with_cursor.render(&ctx3);
+
+    // Query selection state and draw caret below the cursor index
+    var sel: zettui.dom.Selection = .{};
+    var tmp = with_cursor; // select requires mutable Node
+    tmp.select(&sel);
+    const caret_x: usize = @intCast(ctx3.origin_x + @as(i32, @intCast(sel.cursor_index)));
+    const caret_y: usize = @intCast(ctx3.origin_y + 1);
+    screen.drawString(caret_x, caret_y, "^");
+    try screen.present(out);
 }
