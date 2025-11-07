@@ -145,6 +145,8 @@ pub const Node = union(enum) {
     pub fn setBox(self: *Node, box: Box) void {
         switch (self.*) {
             .container => |*container_node| container_node.box = box,
+            .flexbox => |*fb| fb.box = box,
+            .dbox => |*db| db.box = box,
             else => {},
         }
     }
@@ -400,10 +402,12 @@ pub const Flexbox = struct {
     children: []const Node = &[_]Node{},
     direction: FlexDirection = .row,
     gap: usize = 0,
+    box: Box = .{},
 };
 
 pub const Dbox = struct {
     children: []const Node = &[_]Node{},
+    box: Box = .{},
 };
 
 pub const Container = struct {
@@ -658,4 +662,26 @@ test "dbox aggregates by max width/height" {
     const r = n.computeRequirement();
     try std.testing.expectEqual(@as(usize, 7), r.min_width);
     try std.testing.expectEqual(@as(usize, 1), r.min_height);
+}
+
+test "flexbox setBox updates own box" {
+    var n = Node{ .flexbox = .{ .children = &[_]Node{} } };
+    const b = Box{ .origin_x = 0, .origin_y = 0, .width = 20, .height = 3 };
+    n.setBox(b);
+    const observed = switch (n) {
+        .flexbox => |fb| fb.box,
+        else => unreachable,
+    };
+    try std.testing.expectEqual(b, observed);
+}
+
+test "dbox setBox updates own box" {
+    var n = Node{ .dbox = .{ .children = &[_]Node{} } };
+    const b = Box{ .origin_x = 1, .origin_y = 1, .width = 5, .height = 5 };
+    n.setBox(b);
+    const observed = switch (n) {
+        .dbox => |db| db.box,
+        else => unreachable,
+    };
+    try std.testing.expectEqual(b, observed);
 }
