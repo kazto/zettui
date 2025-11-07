@@ -22,7 +22,21 @@ pub const Selection = struct {
 
 pub const RenderContext = struct {
     allow_hyperlinks: bool = false,
+    sink: ?Sink = null,
 };
+
+pub const Sink = struct {
+    user_data: *anyopaque,
+    writeAll: *const fn (user_data: *anyopaque, data: []const u8) anyerror!void,
+};
+
+fn ctxWrite(ctx: *RenderContext, data: []const u8) !void {
+    if (ctx.sink) |s| {
+        try s.writeAll(s.user_data, data);
+    } else {
+        try std.fs.File.stdout().writeAll(data);
+    }
+}
 
 pub const Box = struct {
     origin_x: i32 = 0,
@@ -87,54 +101,51 @@ pub const Node = union(enum) {
     pub fn render(self: Node, ctx: *RenderContext) anyerror!void {
         switch (self) {
             .text => |text_node| {
-                try std.fs.File.stdout().writeAll(text_node.content);
+                try ctxWrite(ctx, text_node.content);
             },
             .separator => {
-                try std.fs.File.stdout().writeAll("---\n");
+                try ctxWrite(ctx, "---\n");
             },
             .window => |w| {
-                try std.fs.File.stdout().writeAll("[");
-                try std.fs.File.stdout().writeAll(w.title);
-                try std.fs.File.stdout().writeAll("]");
+                try ctxWrite(ctx, "[");
+                try ctxWrite(ctx, w.title);
+                try ctxWrite(ctx, "]");
             },
             .gauge => |g| {
-                const stdout = std.fs.File.stdout();
                 const total = if (g.width < 3) 3 else g.width;
                 const inner: usize = total - 2;
                 const clamped = std.math.clamp(g.fraction, 0.0, 1.0);
                 const filled: usize = @intFromFloat(@floor(@as(f32, @floatFromInt(inner)) * clamped + 0.0001));
                 const empty: usize = inner - filled;
-                try stdout.writeAll("[");
+                try ctxWrite(ctx, "[");
                 var i: usize = 0;
-                while (i < filled) : (i += 1) try stdout.writeAll("#");
+                while (i < filled) : (i += 1) try ctxWrite(ctx, "#");
                 i = 0;
-                while (i < empty) : (i += 1) try stdout.writeAll(".");
-                try stdout.writeAll("]");
+                while (i < empty) : (i += 1) try ctxWrite(ctx, ".");
+                try ctxWrite(ctx, "]");
             },
             .spinner => |s| {
-                try std.fs.File.stdout().writeAll(s.currentFrame());
+                try ctxWrite(ctx, s.currentFrame());
             },
             .paragraph => |p| {
-                const stdout = std.fs.File.stdout();
                 const w: usize = if (p.width == 0) 1 else p.width;
                 var i: usize = 0;
                 while (i < p.content.len) : (i += 1) {
                     if (w > 0 and i > 0 and (i % w) == 0) {
-                        try stdout.writeAll("\n");
+                        try ctxWrite(ctx, "\n");
                     }
-                    try stdout.writeAll(p.content[i .. i + 1]);
+                    try ctxWrite(ctx, p.content[i .. i + 1]);
                 }
             },
             .custom => |renderer| try @call(.auto, renderer.callback, .{ renderer.user_data, ctx }),
             .frame => |f| {
-                const stdout = std.fs.File.stdout();
                 const req = f.child.*.computeRequirement();
                 const inner_w: usize = req.min_width;
                 // top border: ┌───┐
-                try stdout.writeAll("\xE2\x94\x8C"); // ┌
+                try ctxWrite(ctx, "\xE2\x94\x8C"); // ┌
                 var i: usize = 0;
-                while (i < inner_w) : (i += 1) try stdout.writeAll("\xE2\x94\x80"); // ─
-                try stdout.writeAll("\xE2\x94\x90\n"); // ┐
+                while (i < inner_w) : (i += 1) try ctxWrite(ctx, "\xE2\x94\x80"); // ─
+                try ctxWrite(ctx, "\xE2\x94\x90\n"); // ┐
 
                 // middle rows: wrap known multi-line children with borders per line
                 switch (f.child.*) {
@@ -142,37 +153,37 @@ pub const Node = union(enum) {
                         const w: usize = if (p.width == 0) 1 else p.width;
                         var idx: usize = 0;
                         while (idx < p.content.len) {
-                            try stdout.writeAll("\xE2\x94\x82"); // │
+                            try ctxWrite(ctx, "\xE2\x94\x82"); // │
                             const rem = p.content.len - idx;
                             const take = if (rem < w) rem else w;
-                            try stdout.writeAll(p.content[idx .. idx + take]);
+                            try ctxWrite(ctx, p.content[idx .. idx + take]);
                             var pad: usize = inner_w - take;
-                            while (pad > 0) : (pad -= 1) try stdout.writeAll(" ");
-                            try stdout.writeAll("\xE2\x94\x82\n"); // │
+                            while (pad > 0) : (pad -= 1) try ctxWrite(ctx, " ");
+                            try ctxWrite(ctx, "\xE2\x94\x82\n"); // │
                             idx += take;
                         }
                         if (p.content.len == 0) {
                             // empty content still renders one empty line inside the frame
-                            try stdout.writeAll("\xE2\x94\x82");
+                            try ctxWrite(ctx, "\xE2\x94\x82");
                             var j: usize = 0;
-                            while (j < inner_w) : (j += 1) try stdout.writeAll(" ");
-                            try stdout.writeAll("\xE2\x94\x82\n");
+                            while (j < inner_w) : (j += 1) try ctxWrite(ctx, " ");
+                            try ctxWrite(ctx, "\xE2\x94\x82\n");
                         }
                     },
                     else => {
                         // default: single row with child rendering
-                        try stdout.writeAll("\xE2\x94\x82"); // │
+                        try ctxWrite(ctx, "\xE2\x94\x82"); // │
                         try f.child.*.render(ctx);
                         // pad to inner width is not attempted here; assume child fits
-                        try stdout.writeAll("\xE2\x94\x82\n"); // │
+                        try ctxWrite(ctx, "\xE2\x94\x82\n"); // │
                     },
                 }
 
                 // bottom border: └───┘
-                try stdout.writeAll("\xE2\x94\x94"); // └
+                try ctxWrite(ctx, "\xE2\x94\x94"); // └
                 i = 0;
-                while (i < inner_w) : (i += 1) try stdout.writeAll("\xE2\x94\x80"); // ─
-                try stdout.writeAll("\xE2\x94\x98\n"); // ┘
+                while (i < inner_w) : (i += 1) try ctxWrite(ctx, "\xE2\x94\x80"); // ─
+                try ctxWrite(ctx, "\xE2\x94\x98\n"); // ┘
             },
             .container => |container_node| try container_node.render(ctx),
             else => {},
@@ -401,4 +412,29 @@ test "frame requirement adds borders" {
     const req = n.computeRequirement();
     try std.testing.expectEqual(@as(usize, 4), req.min_width);
     try std.testing.expectEqual(@as(usize, 3), req.min_height);
+}
+
+test "frame renders paragraph with per-line borders and padding" {
+    var managed = std.array_list.Managed(u8).init(std.testing.allocator);
+    defer managed.deinit();
+    const Adapter = struct {
+        fn write(user_data: *anyopaque, data: []const u8) anyerror!void {
+            const buf = @as(*std.array_list.Managed(u8), @ptrCast(@alignCast(user_data)));
+            try buf.appendSlice(data);
+        }
+    };
+    var ctx: RenderContext = .{
+        .sink = .{ .user_data = @as(*anyopaque, @ptrCast(&managed)), .writeAll = Adapter.write },
+    };
+
+    const para = Node{ .paragraph = .{ .content = "hello", .width = 4 } };
+    const n = Node{ .frame = .{ .child = &para } };
+    try n.render(&ctx);
+
+    const expected =
+        "\xE2\x94\x8C\xE2\x94\x80\xE2\x94\x80\xE2\x94\x80\xE2\x94\x80\xE2\x94\x90\n" ++
+        "\xE2\x94\x82hell\xE2\x94\x82\n" ++
+        "\xE2\x94\x82o   \xE2\x94\x82\n" ++
+        "\xE2\x94\x94\xE2\x94\x80\xE2\x94\x80\xE2\x94\x80\xE2\x94\x80\xE2\x94\x98\n";
+    try std.testing.expectEqualStrings(expected, managed.items);
 }
