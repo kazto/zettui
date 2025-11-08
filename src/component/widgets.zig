@@ -19,6 +19,20 @@ const InputState = struct {
     multiline: bool,
 };
 
+const SliderState = struct {
+    value: f32,
+    min: f32,
+    max: f32,
+    step: f32,
+    horizontal: bool,
+};
+
+const RadioGroupState = struct {
+    labels: []const []const u8,
+    selected_index: usize,
+    allocator: std.mem.Allocator,
+};
+
 pub fn button(allocator: std.mem.Allocator, opts: options.ButtonOptions) !base.Component {
     const owned_label = try allocator.dupe(u8, opts.label);
     const component_ptr = try allocator.create(base.ComponentBase);
@@ -154,24 +168,25 @@ fn inputEvent(self: *base.ComponentBase, event: events.Event) bool {
     const allocator = st.gpa;
     switch (event) {
         .key => |k| {
-            const cp = k.codepoint;
-            // backspace (8) or delete (127)
-            if (cp == 8 or cp == 127) {
-                if (st.buf.items.len > 0) _ = st.buf.pop();
-                return true;
-            }
-            // newline
-            if (cp == '\n') {
-                if (st.multiline) {
-                    st.buf.append(allocator, '\n') catch return false;
+            if (k.codepoint) |cp| {
+                // backspace (8) or delete (127)
+                if (cp == 8 or cp == 127) {
+                    if (st.buf.items.len > 0) _ = st.buf.pop();
                     return true;
                 }
-                return false;
-            }
-            // append ASCII subset (simple demo)
-            if (cp >= 32 and cp <= 126) {
-                st.buf.append(allocator, @as(u8, @intCast(cp))) catch return false;
-                return true;
+                // newline
+                if (cp == '\n') {
+                    if (st.multiline) {
+                        st.buf.append(allocator, '\n') catch return false;
+                        return true;
+                    }
+                    return false;
+                }
+                // append ASCII subset (simple demo)
+                if (cp >= 32 and cp <= 126) {
+                    st.buf.append(allocator, @as(u8, @intCast(cp))) catch return false;
+                    return true;
+                }
             }
         },
         else => {},
@@ -211,10 +226,12 @@ fn checkboxRender(self: *base.ComponentBase) anyerror!void {
 fn checkboxEvent(self: *base.ComponentBase, event: events.Event) bool {
     switch (event) {
         .key => |k| {
-            if (k.codepoint == ' ' or k.codepoint == '\n') {
-                const state = @as(*CheckboxState, @ptrCast(self.user_data.?));
-                state.checked = !state.checked;
-                return true;
+            if (k.codepoint) |cp| {
+                if (cp == ' ' or cp == '\n') {
+                    const state = @as(*CheckboxState, @ptrCast(self.user_data.?));
+                    state.checked = !state.checked;
+                    return true;
+                }
             }
         },
         else => {},
@@ -254,10 +271,12 @@ fn toggleRender(self: *base.ComponentBase) anyerror!void {
 fn toggleEvent(self: *base.ComponentBase, event: events.Event) bool {
     switch (event) {
         .key => |k| {
-            if (k.codepoint == ' ' or k.codepoint == '\n') {
-                const payload = @as(*TogglePayload, @ptrCast(@alignCast(self.user_data.?)));
-                payload.store.on = !payload.store.on;
-                return true;
+            if (k.codepoint) |cp| {
+                if (cp == ' ' or cp == '\n') {
+                    const payload = @as(*TogglePayload, @ptrCast(@alignCast(self.user_data.?)));
+                    payload.store.on = !payload.store.on;
+                    return true;
+                }
             }
         },
         else => {},
@@ -316,6 +335,18 @@ test "checkbox toggles on space key" {
     try std.testing.expect(state.checked);
 }
 
+test "key event with function key" {
+    const ev = events.Event{ .key = .{ .function_key = .f1 } };
+    try std.testing.expect(ev.key.function_key == .f1);
+    try std.testing.expect(ev.key.codepoint == null);
+}
+
+test "key event with arrow key" {
+    const ev = events.Event{ .key = .{ .arrow_key = .up } };
+    try std.testing.expect(ev.key.arrow_key == .up);
+    try std.testing.expect(ev.key.codepoint == null);
+}
+
 test "text input appends and backspaces" {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
@@ -329,4 +360,277 @@ test "text input appends and backspaces" {
     const st = @as(*InputState, @ptrCast(@alignCast(ti.base.user_data.?)));
     try std.testing.expectEqual(@as(usize, 1), st.buf.items.len);
     try std.testing.expectEqual(@as(u8, 'a'), st.buf.items[0]);
+}
+
+pub fn slider(allocator: std.mem.Allocator, opts: options.SliderOptions) !base.Component {
+    const initial_value = std.math.clamp(0.5 * (opts.min + opts.max), opts.min, opts.max);
+    const state_ptr = try allocator.create(SliderState);
+    state_ptr.* = .{
+        .value = initial_value,
+        .min = opts.min,
+        .max = opts.max,
+        .step = opts.step,
+        .horizontal = opts.horizontal,
+    };
+
+    const component_ptr = try allocator.create(base.ComponentBase);
+    component_ptr.* = base.ComponentBase{
+        .text_cache = "",
+        .user_data = @as(*anyopaque, @ptrCast(state_ptr)),
+        .renderFn = sliderRender,
+        .eventFn = sliderEvent,
+        .animationFn = null,
+        .children = &[_]base.Component{},
+        .focus_index = 0,
+    };
+    return .{ .base = component_ptr };
+}
+
+fn sliderRender(self: *base.ComponentBase) anyerror!void {
+    const stdout = std.fs.File.stdout();
+    const state = @as(*SliderState, @ptrCast(@alignCast(self.user_data.?)));
+    const width: usize = 20;
+    const fraction = (state.value - state.min) / (state.max - state.min);
+    const clamped_fraction = std.math.clamp(fraction, 0.0, 1.0);
+    const filled: usize = @intFromFloat(@floor(@as(f32, @floatFromInt(width - 2)) * clamped_fraction + 0.5));
+    const empty: usize = width - 2 - filled;
+
+    if (state.horizontal) {
+        try stdout.writeAll("[");
+        var i: usize = 0;
+        while (i < filled) : (i += 1) try stdout.writeAll("=");
+        try stdout.writeAll(">");
+        i = 0;
+        while (i < empty) : (i += 1) try stdout.writeAll(" ");
+        try stdout.writeAll("]");
+    } else {
+        // Vertical slider: render top to bottom
+        try stdout.writeAll("^");
+        try stdout.writeAll("\n");
+        var row: usize = 0;
+        while (row < width - 2) : (row += 1) {
+            const row_fraction = @as(f32, @floatFromInt(row)) / @as(f32, @floatFromInt(width - 2));
+            if (row_fraction <= 1.0 - clamped_fraction) {
+                try stdout.writeAll("|");
+            } else {
+                try stdout.writeAll(":");
+            }
+            try stdout.writeAll("\n");
+        }
+        try stdout.writeAll("v");
+    }
+}
+
+fn sliderEvent(self: *base.ComponentBase, event: events.Event) bool {
+    const state = @as(*SliderState, @ptrCast(@alignCast(self.user_data.?)));
+    switch (event) {
+        .key => |k| {
+            if (k.arrow_key) |arrow| {
+                const direction: f32 = switch (arrow) {
+                    .left, .down => -1.0,
+                    .right, .up => 1.0,
+                };
+                const actual_direction = if (state.horizontal) (if (arrow == .left or arrow == .right) direction else 0.0) else (if (arrow == .up or arrow == .down) -direction else 0.0);
+                if (actual_direction != 0.0) {
+                    var new_value = state.value + actual_direction * state.step;
+                    new_value = std.math.clamp(new_value, state.min, state.max);
+                    // Snap to step
+                    const steps = @round((new_value - state.min) / state.step);
+                    state.value = state.min + steps * state.step;
+                    state.value = std.math.clamp(state.value, state.min, state.max);
+                    return true;
+                }
+            }
+            // Also support +/- keys
+            if (k.codepoint) |cp| {
+                const direction: f32 = switch (cp) {
+                    '-', '_' => -1.0,
+                    '+', '=' => 1.0,
+                    else => 0.0,
+                };
+                if (direction != 0.0) {
+                    var new_value = state.value + direction * state.step;
+                    new_value = std.math.clamp(new_value, state.min, state.max);
+                    const steps = @round((new_value - state.min) / state.step);
+                    state.value = state.min + steps * state.step;
+                    state.value = std.math.clamp(state.value, state.min, state.max);
+                    return true;
+                }
+            }
+        },
+        .mouse => |m| {
+            // Mouse events could be handled here for click-to-set functionality
+            _ = m;
+        },
+        else => {},
+    }
+    return false;
+}
+
+test "slider initializes with default value" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const sl = try slider(allocator, .{ .min = 0, .max = 100, .step = 1 });
+    const state = @as(*SliderState, @ptrCast(@alignCast(sl.base.user_data.?)));
+    try std.testing.expect(state.value >= state.min);
+    try std.testing.expect(state.value <= state.max);
+}
+
+test "slider responds to arrow keys" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const sl = try slider(allocator, .{ .min = 0, .max = 100, .step = 10, .horizontal = true });
+    const state = @as(*SliderState, @ptrCast(@alignCast(sl.base.user_data.?)));
+    const initial_value = state.value;
+
+    _ = sl.onEvent(.{ .key = .{ .arrow_key = .right } });
+    try std.testing.expect(state.value > initial_value);
+
+    _ = sl.onEvent(.{ .key = .{ .arrow_key = .left } });
+    try std.testing.expect(state.value == initial_value);
+}
+
+pub fn radioGroup(allocator: std.mem.Allocator, opts: options.RadioOptions) !base.Component {
+    // Copy labels
+    const labels_copy = try allocator.alloc([]const u8, opts.labels.len);
+    for (opts.labels, 0..) |label, i| {
+        labels_copy[i] = try allocator.dupe(u8, label);
+    }
+
+    const selected_index = if (opts.selected_index < opts.labels.len) opts.selected_index else 0;
+    const state_ptr = try allocator.create(RadioGroupState);
+    state_ptr.* = .{
+        .labels = labels_copy,
+        .selected_index = selected_index,
+        .allocator = allocator,
+    };
+
+    const component_ptr = try allocator.create(base.ComponentBase);
+    component_ptr.* = base.ComponentBase{
+        .text_cache = "",
+        .user_data = @as(*anyopaque, @ptrCast(state_ptr)),
+        .renderFn = radioGroupRender,
+        .eventFn = radioGroupEvent,
+        .animationFn = null,
+        .children = &[_]base.Component{},
+        .focus_index = selected_index,
+    };
+    return .{ .base = component_ptr };
+}
+
+fn radioGroupRender(self: *base.ComponentBase) anyerror!void {
+    const stdout = std.fs.File.stdout();
+    const state = @as(*RadioGroupState, @ptrCast(@alignCast(self.user_data.?)));
+    for (state.labels, 0..) |label, i| {
+        if (i == state.selected_index) {
+            try stdout.writeAll("(o) ");
+        } else {
+            try stdout.writeAll("( ) ");
+        }
+        try stdout.writeAll(label);
+        if (i < state.labels.len - 1) {
+            try stdout.writeAll("\n");
+        }
+    }
+}
+
+fn radioGroupEvent(self: *base.ComponentBase, event: events.Event) bool {
+    const state = @as(*RadioGroupState, @ptrCast(@alignCast(self.user_data.?)));
+    switch (event) {
+        .key => |k| {
+            if (k.arrow_key) |arrow| {
+                switch (arrow) {
+                    .up => {
+                        if (state.selected_index > 0) {
+                            state.selected_index -= 1;
+                            self.focus_index = state.selected_index;
+                            return true;
+                        }
+                    },
+                    .down => {
+                        if (state.selected_index < state.labels.len - 1) {
+                            state.selected_index += 1;
+                            self.focus_index = state.selected_index;
+                            return true;
+                        }
+                    },
+                    .left, .right => {},
+                }
+            }
+            // Space or Enter to select (though navigation already selects)
+            if (k.codepoint) |cp| {
+                if (cp == ' ' or cp == '\n') {
+                    // Already selected via navigation, just acknowledge
+                    return true;
+                }
+                // Number keys to select by index (1-9)
+                if (cp >= '1' and cp <= '9') {
+                    const index = @as(usize, @intCast(cp - '1'));
+                    if (index < state.labels.len) {
+                        state.selected_index = index;
+                        self.focus_index = index;
+                        return true;
+                    }
+                }
+            }
+        },
+        else => {},
+    }
+    return false;
+}
+
+test "radio group initializes with selected index" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const labels = [_][]const u8{ "Option 1", "Option 2", "Option 3" };
+    const rg = try radioGroup(allocator, .{ .labels = &labels, .selected_index = 1 });
+    const state = @as(*RadioGroupState, @ptrCast(@alignCast(rg.base.user_data.?)));
+    try std.testing.expectEqual(@as(usize, 1), state.selected_index);
+    try std.testing.expectEqual(@as(usize, 3), state.labels.len);
+}
+
+test "radio group navigates with arrow keys" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const labels = [_][]const u8{ "Option 1", "Option 2", "Option 3" };
+    const rg = try radioGroup(allocator, .{ .labels = &labels, .selected_index = 0 });
+    const state = @as(*RadioGroupState, @ptrCast(@alignCast(rg.base.user_data.?)));
+
+    _ = rg.onEvent(.{ .key = .{ .arrow_key = .down } });
+    try std.testing.expectEqual(@as(usize, 1), state.selected_index);
+
+    _ = rg.onEvent(.{ .key = .{ .arrow_key = .up } });
+    try std.testing.expectEqual(@as(usize, 0), state.selected_index);
+
+    _ = rg.onEvent(.{ .key = .{ .arrow_key = .down } });
+    _ = rg.onEvent(.{ .key = .{ .arrow_key = .down } });
+    try std.testing.expectEqual(@as(usize, 2), state.selected_index);
+
+    // Should not go beyond bounds
+    _ = rg.onEvent(.{ .key = .{ .arrow_key = .down } });
+    try std.testing.expectEqual(@as(usize, 2), state.selected_index);
+}
+
+test "radio group selects with number keys" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const labels = [_][]const u8{ "Option 1", "Option 2", "Option 3" };
+    const rg = try radioGroup(allocator, .{ .labels = &labels, .selected_index = 0 });
+    const state = @as(*RadioGroupState, @ptrCast(@alignCast(rg.base.user_data.?)));
+
+    _ = rg.onEvent(.{ .key = .{ .codepoint = '3' } });
+    try std.testing.expectEqual(@as(usize, 2), state.selected_index); // '3' selects index 2 (0-based from '1')
+
+    _ = rg.onEvent(.{ .key = .{ .codepoint = '1' } });
+    try std.testing.expectEqual(@as(usize, 0), state.selected_index);
 }

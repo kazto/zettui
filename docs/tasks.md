@@ -59,9 +59,9 @@ Tasks derived from `docs/specification.md` to track coverage and implementation 
   - [x] Checkbox
   - [x] Toggle
   - [x] Text input (single-line)
-  - [ ] Text inputs (placeholder/password/multiline)
-  - [ ] Sliders
-  - [ ] Radio boxes
+  - [x] Text inputs (placeholder/password/multiline)
+  - [x] Sliders
+  - [x] Radio boxes
   - [ ] Dropdowns
   - [ ] Menus (animated)
   - [ ] Resizable splits
@@ -77,13 +77,18 @@ Tasks derived from `docs/specification.md` to track coverage and implementation 
   - [x] `WindowOptions`
   - [x] `CheckboxOptions`
   - [x] `ToggleOptions`
-  - [ ] `MenuOptions`
-  - [ ] `InputOptions`
-  - [ ] `SliderOptions`
+  - [x] `MenuOptions`
+  - [x] `InputOptions`
+  - [x] `SliderOptions`
+  - [x] `RadioOptions`
 
 ### Events & Looping
 - [ ] Ensure `events.zig` enumerates keyboard characters, modifiers, function keys, mouse events, and cursor state.
-- [ ] Maintain `Mouse` structs for coordinates, buttons, and modifiers.
+  - [x] Keyboard characters and modifiers
+  - [x] Function keys (F1-F12)
+  - [x] Arrow keys (up, down, left, right)
+  - [x] Mouse events and cursor state
+- [x] Maintain `Mouse` structs for coordinates, buttons, and modifiers.
 - [ ] Keep `animation/animator.zig` easing utilities synchronized with widget animations.
 - [ ] Guarantee `task` and `screen_interactive.zig` manage event loops, async posts, animation frames, selection APIs, piped input, and terminal control.
 - [ ] Preserve `Loop` helpers for non-blocking iterations and `CapturedMouse` semantics for exclusive pointer capture.

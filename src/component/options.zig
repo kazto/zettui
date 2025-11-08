@@ -46,3 +46,8 @@ pub const ToggleOptions = struct {
     off_label: []const u8 = "OFF",
     on: bool = false,
 };
+
+pub const RadioOptions = struct {
+    labels: []const []const u8 = &[_][]const u8{},
+    selected_index: usize = 0,
+};

@@ -14,8 +14,12 @@ pub const SliderOptions = options.SliderOptions;
 pub const WindowOptions = options.WindowOptions;
 pub const CheckboxOptions = options.CheckboxOptions;
 pub const ToggleOptions = options.ToggleOptions;
+pub const RadioOptions = options.RadioOptions;
 
 pub const Event = events.Event;
 pub const Mouse = events.Mouse;
+pub const FunctionKey = events.FunctionKey;
+pub const ArrowKey = events.ArrowKey;
+pub const KeyEvent = events.KeyEvent;
 
 pub const widgets = widgets_mod;
