@@ -494,11 +494,93 @@ test "slider responds to arrow keys" {
     try std.testing.expect(state.value == initial_value);
 }
 
+test "slider vertical orientation responds to up/down arrows" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const sl = try slider(allocator, .{ .min = 0, .max = 100, .step = 10, .horizontal = false });
+    const state = @as(*SliderState, @ptrCast(@alignCast(sl.base.user_data.?)));
+    const initial_value = state.value;
+
+    // Vertical slider: up decreases value, down increases value (opposite of horizontal)
+    _ = sl.onEvent(.{ .key = .{ .arrow_key = .down } });
+    try std.testing.expect(state.value > initial_value);
+
+    _ = sl.onEvent(.{ .key = .{ .arrow_key = .up } });
+    try std.testing.expect(state.value == initial_value);
+}
+
+test "slider responds to plus minus keys" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const sl = try slider(allocator, .{ .min = 0, .max = 100, .step = 5, .horizontal = true });
+    const state = @as(*SliderState, @ptrCast(@alignCast(sl.base.user_data.?)));
+    const initial_value = state.value;
+
+    _ = sl.onEvent(.{ .key = .{ .codepoint = '+' } });
+    try std.testing.expect(state.value > initial_value);
+
+    _ = sl.onEvent(.{ .key = .{ .codepoint = '-' } });
+    try std.testing.expect(state.value == initial_value);
+}
+
+test "slider respects min and max boundaries" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const sl = try slider(allocator, .{ .min = 10, .max = 20, .step = 1, .horizontal = true });
+    const state = @as(*SliderState, @ptrCast(@alignCast(sl.base.user_data.?)));
+
+    // Set to max
+    while (state.value < state.max) {
+        _ = sl.onEvent(.{ .key = .{ .arrow_key = .right } });
+    }
+    try std.testing.expect(state.value <= state.max);
+
+    // Try to go beyond max
+    _ = sl.onEvent(.{ .key = .{ .arrow_key = .right } });
+    try std.testing.expect(state.value <= state.max);
+
+    // Set to min
+    while (state.value > state.min) {
+        _ = sl.onEvent(.{ .key = .{ .arrow_key = .left } });
+    }
+    try std.testing.expect(state.value >= state.min);
+
+    // Try to go beyond min
+    _ = sl.onEvent(.{ .key = .{ .arrow_key = .left } });
+    try std.testing.expect(state.value >= state.min);
+}
+
+test "slider snaps to step values" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const sl = try slider(allocator, .{ .min = 0, .max = 100, .step = 5, .horizontal = true });
+    const state = @as(*SliderState, @ptrCast(@alignCast(sl.base.user_data.?)));
+
+    // Move slider
+    _ = sl.onEvent(.{ .key = .{ .arrow_key = .right } });
+    _ = sl.onEvent(.{ .key = .{ .arrow_key = .right } });
+
+    // Value should be a multiple of step (with small floating point tolerance)
+    const normalized_value = state.value - state.min;
+    const steps = @round(normalized_value / state.step);
+    const expected_value = state.min + steps * state.step;
+    const diff = @abs(state.value - expected_value);
+    try std.testing.expect(diff < 0.001);
+}
+
 pub fn radioGroup(allocator: std.mem.Allocator, opts: options.RadioOptions) !base.Component {
     // Copy labels
     const labels_copy = try allocator.alloc([]const u8, opts.labels.len);
-    for (opts.labels, 0..) |label, i| {
-        labels_copy[i] = try allocator.dupe(u8, label);
+    for (opts.labels, 0..) |label_text, i| {
+        labels_copy[i] = try allocator.dupe(u8, label_text);
     }
 
     const selected_index = if (opts.selected_index < opts.labels.len) opts.selected_index else 0;
@@ -525,13 +607,13 @@ pub fn radioGroup(allocator: std.mem.Allocator, opts: options.RadioOptions) !bas
 fn radioGroupRender(self: *base.ComponentBase) anyerror!void {
     const stdout = std.fs.File.stdout();
     const state = @as(*RadioGroupState, @ptrCast(@alignCast(self.user_data.?)));
-    for (state.labels, 0..) |label, i| {
+    for (state.labels, 0..) |label_text, i| {
         if (i == state.selected_index) {
             try stdout.writeAll("(o) ");
         } else {
             try stdout.writeAll("( ) ");
         }
-        try stdout.writeAll(label);
+        try stdout.writeAll(label_text);
         if (i < state.labels.len - 1) {
             try stdout.writeAll("\n");
         }
@@ -633,4 +715,45 @@ test "radio group selects with number keys" {
 
     _ = rg.onEvent(.{ .key = .{ .codepoint = '1' } });
     try std.testing.expectEqual(@as(usize, 0), state.selected_index);
+}
+
+test "radio group ignores invalid number keys" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const labels = [_][]const u8{ "Option 1", "Option 2", "Option 3" };
+    const rg = try radioGroup(allocator, .{ .labels = &labels, .selected_index = 1 });
+    const state = @as(*RadioGroupState, @ptrCast(@alignCast(rg.base.user_data.?)));
+
+    const initial_index = state.selected_index;
+
+    // Try invalid number keys (out of range)
+    _ = rg.onEvent(.{ .key = .{ .codepoint = '5' } });
+    try std.testing.expectEqual(initial_index, state.selected_index);
+
+    _ = rg.onEvent(.{ .key = .{ .codepoint = '9' } });
+    try std.testing.expectEqual(initial_index, state.selected_index);
+}
+
+test "radio group handles space and enter keys" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const labels = [_][]const u8{ "Option 1", "Option 2", "Option 3" };
+    const rg = try radioGroup(allocator, .{ .labels = &labels, .selected_index = 1 });
+    const state = @as(*RadioGroupState, @ptrCast(@alignCast(rg.base.user_data.?)));
+
+    const initial_index = state.selected_index;
+
+    // Space key should be handled (consumed)
+    const space_consumed = rg.onEvent(.{ .key = .{ .codepoint = ' ' } });
+    try std.testing.expect(space_consumed);
+    try std.testing.expectEqual(initial_index, state.selected_index);
+
+    // Enter key should be handled (consumed)
+    const enter_consumed = rg.onEvent(.{ .key = .{ .codepoint = '\n' } });
+    try std.testing.expect(enter_consumed);
+    try std.testing.expectEqual(initial_index, state.selected_index);
 }

@@ -68,6 +68,38 @@ pub fn build(b: *std.Build) void {
     const run_layout_step = b.step("run:layout", "Run the layout demo (DOM -> Screen drawer)");
     run_layout_step.dependOn(&run_layout.step);
 
+    // Widgets demo (slider and radio group)
+    const widgets_module = b.createModule(.{
+        .root_source_file = b.path("examples/widgets_demo.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "zettui", .module = zettui_module }},
+    });
+    const widgets_exe = b.addExecutable(.{
+        .name = "zettui-widgets",
+        .root_module = widgets_module,
+    });
+    b.installArtifact(widgets_exe);
+    const run_widgets = b.addRunArtifact(widgets_exe);
+    const run_widgets_step = b.step("run:widgets", "Run the widgets demo (slider and radio group)");
+    run_widgets_step.dependOn(&run_widgets.step);
+
+    // Interactive widgets demo
+    const widgets_interactive_module = b.createModule(.{
+        .root_source_file = b.path("examples/widgets_interactive.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "zettui", .module = zettui_module }},
+    });
+    const widgets_interactive_exe = b.addExecutable(.{
+        .name = "zettui-widgets-interactive",
+        .root_module = widgets_interactive_module,
+    });
+    b.installArtifact(widgets_interactive_exe);
+    const run_widgets_interactive = b.addRunArtifact(widgets_interactive_exe);
+    const run_widgets_interactive_step = b.step("run:widgets-interactive", "Run the interactive widgets demo");
+    run_widgets_interactive_step.dependOn(&run_widgets_interactive.step);
+
     const tests_module = b.createModule(.{
         .root_source_file = b.path("src/lib.zig"),
         .target = target,
