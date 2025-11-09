@@ -155,6 +155,8 @@ pub const Node = union(enum) {
     gauge: Gauge,
     spinner: Spinner,
     paragraph: Paragraph,
+    graph: Graph,
+    canvas: Canvas,
     frame: Frame,
     size: Size,
     filler: Filler,
@@ -177,6 +179,20 @@ pub const Node = union(enum) {
                 const w: usize = if (p.width == 0) 1 else p.width;
                 const lines: usize = (p.content.len + w - 1) / w;
                 break :blk Requirement{ .min_width = w, .min_height = if (lines == 0) 1 else lines };
+            },
+            .graph => |g| blkGraph: {
+                const dims = g.dimensions();
+                break :blkGraph Requirement{
+                    .min_width = dims.width,
+                    .min_height = dims.height,
+                };
+            },
+            .canvas => |c| blkCanvas: {
+                const dims = c.dimensions();
+                break :blkCanvas Requirement{
+                    .min_width = dims.width,
+                    .min_height = dims.height,
+                };
             },
             .size => |s| blkSize: {
                 const child_req = s.child.*.computeRequirement();
@@ -340,6 +356,8 @@ pub const Node = union(enum) {
                     }
                 }
             },
+            .graph => |g| try g.render(ctx),
+            .canvas => |c| try c.render(ctx),
             .custom => |renderer| try @call(.auto, renderer.callback, .{ renderer.user_data, ctx }),
             .frame => |f| {
                 const req = f.child.*.computeRequirement();
@@ -557,6 +575,16 @@ pub const Node = union(enum) {
                 selection.setAccessibility(.text, "Paragraph", "", p.content, "");
                 selection.setCursor(0, 0);
             },
+            .graph => |g| {
+                _ = g;
+                selection.setAccessibility(.text, "Graph", "Data visualization", "", "");
+                selection.setCursor(0, 0);
+            },
+            .canvas => |c| {
+                _ = c;
+                selection.setAccessibility(.text, "Canvas", "Custom drawing", "", "");
+                selection.setCursor(0, 0);
+            },
             .separator => {
                 selection.setAccessibility(.none, "Separator", "Visual separator", "", "");
             },
@@ -631,6 +659,134 @@ pub const Spinner = struct {
 pub const Paragraph = struct {
     content: []const u8,
     width: usize = 40,
+};
+
+pub const Graph = struct {
+    values: []const f32 = &[_]f32{},
+    width: usize = 0,
+    height: usize = 4,
+    min_value: ?f32 = null,
+    max_value: ?f32 = null,
+    fill_char: u8 = '#',
+    empty_char: u8 = ' ',
+
+    const Dimensions = struct { width: usize, height: usize };
+    const Extents = struct { min: f32, max: f32 };
+
+    pub fn dimensions(self: Graph) Dimensions {
+        const raw_width = if (self.width > 0) self.width else self.values.len;
+        const width = if (raw_width == 0) 1 else raw_width;
+        const height = if (self.height == 0) 1 else self.height;
+        return .{ .width = width, .height = height };
+    }
+
+    fn extents(self: Graph) Extents {
+        var min_val: f32 = if (self.values.len > 0) self.values[0] else 0.0;
+        var max_val: f32 = min_val;
+        if (self.values.len > 0) {
+            for (self.values[1..]) |val| {
+                min_val = @min(min_val, val);
+                max_val = @max(max_val, val);
+            }
+        }
+        if (self.min_value) |mv| min_val = mv;
+        if (self.max_value) |mv| max_val = mv;
+        if (max_val <= min_val) {
+            max_val = min_val + 1.0;
+        }
+        return .{ .min = min_val, .max = max_val };
+    }
+
+    fn sampleValue(self: Graph, column: usize, width: usize) f32 {
+        if (self.values.len == 0) return 0.0;
+        if (self.values.len == width) {
+            return self.values[@min(column, self.values.len - 1)];
+        }
+        const scaled = column * self.values.len;
+        const idx = @min(self.values.len - 1, scaled / width);
+        return self.values[idx];
+    }
+
+    pub fn render(self: Graph, ctx: *RenderContext) anyerror!void {
+        const dims = self.dimensions();
+        const width = dims.width;
+        const height = dims.height;
+        const ext = self.extents();
+        const range = ext.max - ext.min;
+        var row: usize = 0;
+        while (row < height) : (row += 1) {
+            var col: usize = 0;
+            while (col < width) : (col += 1) {
+                const value = self.sampleValue(col, width);
+                const normalized = if (range <= 0.0)
+                    0.0
+                else
+                    std.math.clamp((value - ext.min) / range, 0.0, 1.0);
+                var filled_rows: usize = @intFromFloat(@round(normalized * @as(f32, @floatFromInt(height))));
+                if (filled_rows > height) filled_rows = height;
+                const threshold = height - row;
+                const draw_fill = filled_rows >= threshold and filled_rows > 0;
+                const ch = if (draw_fill) self.fill_char else self.empty_char;
+                if (ctx.drawer != null) {
+                    const cell = [1]u8{ch};
+                    try ctxDraw(ctx, ctx.origin_x + @as(i32, @intCast(col)), ctx.origin_y + @as(i32, @intCast(row)), cell[0..]);
+                } else {
+                    const cell = [1]u8{ch};
+                    try ctxWrite(ctx, cell[0..]);
+                }
+            }
+            if (ctx.drawer == null) {
+                try ctxWrite(ctx, "\n");
+            }
+        }
+    }
+};
+
+pub const Canvas = struct {
+    rows: []const []const u8 = &[_][]const u8{},
+    width: usize = 0,
+    height: usize = 0,
+    fill_char: u8 = ' ',
+
+    const Dimensions = struct { width: usize, height: usize };
+
+    pub fn dimensions(self: Canvas) Dimensions {
+        var width = self.width;
+        for (self.rows) |row| {
+            width = @max(width, row.len);
+        }
+        const height = if (self.height > 0) self.height else self.rows.len;
+        return .{ .width = width, .height = height };
+    }
+
+    pub fn render(self: Canvas, ctx: *RenderContext) anyerror!void {
+        const dims = self.dimensions();
+        if (dims.height == 0 and dims.width == 0) return;
+        var row_idx: usize = 0;
+        while (row_idx < dims.height) : (row_idx += 1) {
+            const row_data = if (row_idx < self.rows.len) self.rows[row_idx] else "";
+            if (ctx.drawer != null) {
+                var col: usize = 0;
+                while (col < dims.width) : (col += 1) {
+                    const ch = if (col < row_data.len) row_data[col] else self.fill_char;
+                    const cell = [1]u8{ch};
+                    try ctxDraw(ctx, ctx.origin_x + @as(i32, @intCast(col)), ctx.origin_y + @as(i32, @intCast(row_idx)), cell[0..]);
+                }
+            } else {
+                if (dims.width == 0) {
+                    try ctxWrite(ctx, "\n");
+                    continue;
+                }
+                var col: usize = 0;
+                while (col < dims.width) : (col += 1) {
+                    const ch = if (col < row_data.len) row_data[col] else self.fill_char;
+                    const cell = [1]u8{ch};
+                    try ctxWrite(ctx, cell[0..]);
+                }
+                try ctxWrite(ctx, "\n");
+            }
+        }
+    }
 };
 
 pub const Frame = struct {
@@ -905,6 +1061,64 @@ test "paragraph requirement uses width and line count" {
     const req = p.computeRequirement();
     try std.testing.expectEqual(@as(usize, 5), req.min_width);
     try std.testing.expectEqual(@as(usize, 3), req.min_height);
+}
+
+test "graph requirement uses explicit overrides" {
+    const g = Node{ .graph = .{ .values = &[_]f32{ 0.25, 0.5 }, .width = 4, .height = 3 } };
+    const req = g.computeRequirement();
+    try std.testing.expectEqual(@as(usize, 4), req.min_width);
+    try std.testing.expectEqual(@as(usize, 3), req.min_height);
+}
+
+test "graph render outputs ascii sparkline" {
+    var managed = std.array_list.Managed(u8).init(std.testing.allocator);
+    defer managed.deinit();
+    const Adapter = struct {
+        fn write(user_data: *anyopaque, data: []const u8) anyerror!void {
+            const buf = @as(*std.array_list.Managed(u8), @ptrCast(@alignCast(user_data)));
+            try buf.appendSlice(data);
+        }
+    };
+    var ctx: RenderContext = .{
+        .sink = .{ .user_data = @as(*anyopaque, @ptrCast(&managed)), .writeAll = Adapter.write },
+    };
+    const node = Node{ .graph = .{
+        .values = &[_]f32{ 0.0, 0.5, 1.0 },
+        .height = 2,
+        .empty_char = '.',
+        .fill_char = '#',
+    } };
+    try node.render(&ctx);
+    try std.testing.expectEqualStrings("..#\n.##\n", managed.items);
+}
+
+test "canvas requirement tracks widest row" {
+    const node = Node{ .canvas = .{ .rows = &[_][]const u8{ "x", "wide" } } };
+    const req = node.computeRequirement();
+    try std.testing.expectEqual(@as(usize, 4), req.min_width);
+    try std.testing.expectEqual(@as(usize, 2), req.min_height);
+}
+
+test "canvas render pads missing cells" {
+    var managed = std.array_list.Managed(u8).init(std.testing.allocator);
+    defer managed.deinit();
+    const Adapter = struct {
+        fn write(user_data: *anyopaque, data: []const u8) anyerror!void {
+            const buf = @as(*std.array_list.Managed(u8), @ptrCast(@alignCast(user_data)));
+            try buf.appendSlice(data);
+        }
+    };
+    var ctx: RenderContext = .{
+        .sink = .{ .user_data = @as(*anyopaque, @ptrCast(&managed)), .writeAll = Adapter.write },
+    };
+    const node = Node{ .canvas = .{
+        .rows = &[_][]const u8{ "xo", "ox" },
+        .width = 3,
+        .height = 3,
+        .fill_char = '.',
+    } };
+    try node.render(&ctx);
+    try std.testing.expectEqualStrings("xo.\nox.\n...\n", managed.items);
 }
 
 test "frame requirement adds borders" {

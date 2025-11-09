@@ -63,6 +63,22 @@ pub fn paragraph(content: []const u8, width: usize) node.Node {
     return .{ .paragraph = .{ .content = content, .width = width } };
 }
 
+pub fn graph(values: []const f32, height: usize) node.Node {
+    return .{ .graph = .{ .values = values, .height = height } };
+}
+
+pub fn graphWidth(values: []const f32, width: usize, height: usize) node.Node {
+    return .{ .graph = .{ .values = values, .width = width, .height = height } };
+}
+
+pub fn canvas(rows: []const []const u8) node.Node {
+    return .{ .canvas = .{ .rows = rows } };
+}
+
+pub fn canvasSized(rows: []const []const u8, width: usize, height: usize) node.Node {
+    return .{ .canvas = .{ .rows = rows, .width = width, .height = height } };
+}
+
 pub fn framePtr(child: *const node.Node) node.Node {
     return .{ .frame = .{ .child = child } };
 }
@@ -86,6 +102,22 @@ test "frameOwned wraps child and sets requirement" {
     try std.testing.expectEqual(@as(usize, 3), req.min_height);
 }
 
+test "flex helpers configure filler grow shrink" {
+    const default_node = flex();
+    const default_req = default_node.computeRequirement();
+    try std.testing.expectEqual(@as(f32, 1), default_req.flex_grow);
+    try std.testing.expectEqual(@as(f32, 1), default_req.flex_shrink);
+
+    const grow_node = flexGrow(4);
+    const grow_req = grow_node.computeRequirement();
+    try std.testing.expectEqual(@as(f32, 4), grow_req.flex_grow);
+
+    const tuned_node = flexGrowShrink(2, 0.25);
+    const tuned_req = tuned_node.computeRequirement();
+    try std.testing.expectEqual(@as(f32, 2), tuned_req.flex_grow);
+    try std.testing.expectEqual(@as(f32, 0.25), tuned_req.flex_shrink);
+}
+
 pub fn sizePtr(child: *const node.Node, width: usize, height: usize) node.Node {
     return .{ .size = .{ .child = child, .width = width, .height = height } };
 }
@@ -98,6 +130,18 @@ pub fn sizeOwned(allocator: std.mem.Allocator, child: node.Node, width: usize, h
 
 pub fn filler(grow: f32) node.Node {
     return .{ .filler = .{ .grow = grow } };
+}
+
+pub fn flex() node.Node {
+    return .{ .filler = .{} };
+}
+
+pub fn flexGrow(grow: f32) node.Node {
+    return .{ .filler = .{ .grow = grow } };
+}
+
+pub fn flexGrowShrink(grow: f32, shrink: f32) node.Node {
+    return .{ .filler = .{ .grow = grow, .shrink = shrink } };
 }
 
 pub fn focusPtr(child: *const node.Node, pos: node.FocusPosition) node.Node {

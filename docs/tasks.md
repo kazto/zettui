@@ -16,15 +16,15 @@ Tasks derived from `docs/specification.md` to track coverage and implementation 
 - [x] Keep `Selection` records wired into focus, cursor, and accessibility flows.
 
 ### Layout & Widgets
-- [ ] Provide element builders in `elements.zig` (`text`, `paragraph*`, `window`, `gauge*`, `spinner`, `graph`, `canvas`, border and separator helpers`).
+- [x] Provide element builders in `elements.zig` (`text`, `paragraph*`, `window`, `gauge*`, `spinner`, `graph`, `canvas`, border and separator helpers`).
   - [x] `text`
   - [x] `paragraph`
   - [x] `window`
   - [x] `gauge`
   - [x] `spinner`
   - [x] `separator`
-  - [ ] `graph`
-  - [ ] `canvas`
+  - [x] `graph`
+  - [x] `canvas`
   - [x] border helpers (frame decorator)
 - [ ] Support container combinators (`hbox`, `vbox`, `dbox`, `flexbox`) plus flow utilities (`flex*`, `filler`, `size`, `frame`, `focus`, cursor modifiers) returning fully configured `Node` values.
   - [x] `hbox`
@@ -33,7 +33,7 @@ Tasks derived from `docs/specification.md` to track coverage and implementation 
   - [x] `flexbox`
   - Flow utilities:
     - [x] `frame`
-    - [ ] `flex*`
+    - [x] `flex*`
     - [x] `filler`
     - [x] `size`
     - [x] `focus`

@@ -31,11 +31,27 @@ pub fn main() !void {
         .allocator = a,
     };
 
-    // Build a simple dashboard: two rows
+    // Build a simple dashboard: stats, visualization, and footer rows
+    const cpu_trend = [_]f32{ 0.2, 0.4, 0.35, 0.6, 0.9, 0.75, 0.5, 0.65, 0.8, 0.55 };
+    const sparkline = zettui.dom.elements.graphWidth(&cpu_trend, 30, 6);
+    const badge_rows = [_][]const u8{
+        " /\\ ",
+        "/__\\",
+        "|  |",
+        "|__|",
+    };
+    const ascii_badge = zettui.dom.elements.canvasSized(&badge_rows, 6, 4);
+
     const top_row = zettui.dom.elements.flexboxRow(&[_]zettui.dom.Node{
         zettui.dom.elements.window("Stats"),
         zettui.dom.elements.gaugeWidth(0.75, 20),
         zettui.dom.elements.paragraph("CPU RAM", 3),
+    }, 2);
+
+    const viz_row = zettui.dom.elements.flexboxRow(&[_]zettui.dom.Node{
+        sparkline,
+        zettui.dom.elements.separator(.vertical),
+        ascii_badge,
     }, 2);
 
     const bottom_row = zettui.dom.elements.flexboxRow(&[_]zettui.dom.Node{
@@ -44,7 +60,7 @@ pub fn main() !void {
         zettui.dom.elements.text("Press Q to quit"),
     }, 1);
 
-    const root = zettui.dom.elements.vbox(&[_]zettui.dom.Node{ top_row, bottom_row });
+    const root = zettui.dom.elements.vbox(&[_]zettui.dom.Node{ top_row, viz_row, bottom_row });
     try root.render(&ctx);
 
     const out = std.fs.File.stdout();
