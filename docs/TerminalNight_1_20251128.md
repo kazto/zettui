@@ -1,11 +1,11 @@
 ---
-presentationID: 1iuX8bJenKJ_hrm7kwxP0QJIKWO8ubebc7_dZsmh1Kw0
+presentationID: 1lx3n9Xfgwqo5jeTC-HsdihmYmmy0V791d4pdxHOPXJ4
 title: ncursesの後継者たち
 ---
 
 # ncursesの後継者たち
 
-## 2025-11-28 Terminal Night #1<br>kazto
+## 2025-11-28 Terminal Night #1<br>kazto (@kazto_dev)
 
 ---
 
@@ -45,7 +45,7 @@ title: ncursesの後継者たち
 
 まぁこれくらいはAIに聞けば出てくる
 
-<!-- {"layout": "Two Content"} -->
+<!-- {"layout": "2 列（タイトルあり）"} -->
 
 ---
 
@@ -59,13 +59,15 @@ title: ncursesの後継者たち
 
 # C言語で？今さら？
 
-<!-- {"layout": "Title Only"} -->
+<!-- {"layout": "セクション ヘッダー"} -->
 
 ---
 
-# Zigでしょ！
+# Zigでしょ！<br><br><br>
 
-<!-- {"layout": "Title Only"} -->
+![Zig-logo](./zig-mark.png)
+
+<!-- {"layout": "セクション ヘッダー"} -->
 
 ---
 
@@ -81,9 +83,24 @@ title: ncursesの後継者たち
 # やるなら今しかねぇ～
 
 * [Zettui](https://github.com/kazto/zettui)
+  * https://github.com/kazto/zettui
+
+```qr
+https://github.com/kazto/zettui
+```
 
 ---
 
 # 俺たちの戦いはこれからだ
 
-<!-- {"layout": "Title Only"} -->
+<!-- {"layout": "セクション ヘッダー"} -->
+
+---
+
+# thanks
+
+* [k1LoW/deck](https://github.com/k1LoW/deck)
+
+```qr
+https://github.com/k1LoW/deck
+```

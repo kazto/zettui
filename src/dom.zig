@@ -4,6 +4,7 @@ const elements_mod = @import("dom/elements.zig");
 pub const Node = node.Node;
 pub const Requirement = node.Requirement;
 pub const Selection = node.Selection;
+pub const AccessibilityRole = node.AccessibilityRole;
 pub const RenderContext = node.RenderContext;
 
 pub const FocusPosition = node.FocusPosition;

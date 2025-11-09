@@ -15,9 +15,105 @@ pub const Requirement = struct {
     focus: ?FocusPosition = null,
 };
 
+pub const AccessibilityRole = enum {
+    button,
+    checkbox,
+    text_input,
+    slider,
+    radio_group,
+    link,
+    text,
+    heading,
+    list,
+    list_item,
+    container,
+    none,
+};
+
 pub const Selection = struct {
+    // Focus state
     has_focus: bool = false,
-    cursor_index: usize = 0,
+
+    // Cursor state
+    cursor_index: usize = 0, // Character index in text content
+    cursor_line: usize = 0, // Line number (for multi-line text)
+    selection_start: ?usize = null, // Start of text selection (if any)
+    selection_end: ?usize = null, // End of text selection (if any)
+
+    // Accessibility information
+    role: AccessibilityRole = .none,
+    label: []const u8 = "", // Accessible label/name
+    description: []const u8 = "", // Additional description
+    value: []const u8 = "", // Current value (for inputs, sliders, etc.)
+    state: []const u8 = "", // State description (e.g., "checked", "expanded")
+
+    // Position information
+    box: ?Box = null, // Bounding box of selected element
+
+    pub fn init() Selection {
+        return .{};
+    }
+
+    pub fn clear(self: *Selection) void {
+        self.* = .{};
+    }
+
+    pub fn setFocus(self: *Selection) void {
+        self.has_focus = true;
+    }
+
+    pub fn clearFocus(self: *Selection) void {
+        self.has_focus = false;
+    }
+
+    pub fn setCursor(self: *Selection, index: usize, line: usize) void {
+        self.cursor_index = index;
+        self.cursor_line = line;
+    }
+
+    pub fn setSelection(self: *Selection, start: usize, end: usize) void {
+        self.selection_start = start;
+        self.selection_end = end;
+    }
+
+    pub fn clearSelection(self: *Selection) void {
+        self.selection_start = null;
+        self.selection_end = null;
+    }
+
+    pub fn setAccessibility(self: *Selection, role: AccessibilityRole, label: []const u8, description: []const u8, value: []const u8, state: []const u8) void {
+        self.role = role;
+        self.label = label;
+        self.description = description;
+        self.value = value;
+        self.state = state;
+    }
+
+    pub fn getAccessibilityDescription(self: Selection, allocator: std.mem.Allocator) ![]const u8 {
+        var buf = std.ArrayList(u8).initCapacity(allocator, 256) catch |e| return e;
+        errdefer buf.deinit(allocator);
+
+        if (self.label.len > 0) {
+            try buf.appendSlice(allocator, self.label);
+        }
+
+        if (self.state.len > 0) {
+            if (buf.items.len > 0) try buf.appendSlice(allocator, ", ");
+            try buf.appendSlice(allocator, self.state);
+        }
+
+        if (self.value.len > 0) {
+            if (buf.items.len > 0) try buf.appendSlice(allocator, ", ");
+            try buf.appendSlice(allocator, self.value);
+        }
+
+        if (self.description.len > 0) {
+            if (buf.items.len > 0) try buf.appendSlice(allocator, ". ");
+            try buf.appendSlice(allocator, self.description);
+        }
+
+        return try buf.toOwnedSlice(allocator);
+    }
 };
 
 pub const RenderContext = struct {
@@ -385,46 +481,86 @@ pub const Node = union(enum) {
         }
     }
 
-    pub fn select(self: *Node, selection: *Selection) void {
-        switch (self.*) {
-            .container => |*container_node| container_node.select(selection),
-            .frame => |*f| {
-                var tmp = f.child.*;
-                tmp.select(selection);
+    pub fn select(self: Node, selection: *Selection) void {
+        switch (self) {
+            .text => |text_node| {
+                selection.setAccessibility(.text, text_node.content, "", text_node.content, "");
+                selection.setCursor(0, 0);
             },
-            .size => |*s| {
-                var tmp = s.child.*;
-                tmp.select(selection);
+            .container => |container_node| {
+                var mut_container = container_node;
+                mut_container.select(selection);
             },
-            .focus => |*fx| {
-                var tmp = fx.child.*;
-                tmp.select(selection);
+            .frame => |f| {
+                f.child.*.select(selection);
+                if (selection.has_focus) {
+                    selection.setAccessibility(.container, "Frame", "", selection.value, selection.state);
+                }
             },
-            .flexbox => |*fb| {
+            .size => |s| {
+                s.child.*.select(selection);
+            },
+            .focus => |fx| {
+                fx.child.*.select(selection);
+                if (selection.has_focus) {
+                    selection.setFocus();
+                }
+            },
+            .flexbox => |fb| {
                 const kids = if (fb.owned_children) |oc| oc else fb.children;
+                selection.setAccessibility(.container, "Flexbox", "", "", "");
                 for (kids) |child| {
-                    var tmp = child;
-                    tmp.select(selection);
+                    var child_selection = Selection.init();
+                    child.select(&child_selection);
+                    if (child_selection.has_focus) {
+                        selection.* = child_selection;
+                        break;
+                    }
                 }
             },
-            .dbox => |*db| {
+            .dbox => |db| {
                 const kids = if (db.owned_children) |oc| oc else db.children;
+                selection.setAccessibility(.container, "Dbox", "", "", "");
                 for (kids) |child| {
-                    var tmp = child;
-                    tmp.select(selection);
+                    var child_selection = Selection.init();
+                    child.select(&child_selection);
+                    if (child_selection.has_focus) {
+                        selection.* = child_selection;
+                        break;
+                    }
                 }
             },
-            .cursor => |*c| {
+            .cursor => |c| {
                 if (c.child) |ch| {
-                    var tmp = ch.*;
-                    tmp.select(selection);
-                    selection.has_focus = true;
-                    selection.cursor_index = c.index;
+                    ch.*.select(selection);
+                    selection.setFocus();
+                    selection.setCursor(c.index, 0);
+                    // Update accessibility if it's a text input
+                    if (selection.role == .text) {
+                        selection.role = .text_input;
+                    }
                 } else {
-                    selection.* = .{};
+                    selection.clear();
                 }
             },
-            else => selection.* = .{},
+            .window => |w| {
+                selection.setAccessibility(.container, w.title, "Window frame", "", "");
+            },
+            .gauge => |g| {
+                const value_str = if (g.fraction > 0.0) "filled" else "empty";
+                selection.setAccessibility(.none, "Gauge", "Progress indicator", "", value_str);
+            },
+            .spinner => |s| {
+                selection.setAccessibility(.none, "Spinner", "Loading indicator", s.currentFrame(), "");
+            },
+            .paragraph => |p| {
+                selection.setAccessibility(.text, "Paragraph", "", p.content, "");
+                selection.setCursor(0, 0);
+            },
+            .separator => {
+                selection.setAccessibility(.none, "Separator", "Visual separator", "", "");
+            },
+            else => selection.clear(),
         }
     }
 
@@ -649,9 +785,15 @@ pub const Container = struct {
 
     pub fn select(self: *Container, selection: *Selection) void {
         const kids = if (self.owned_children) |oc| oc else self.children;
+        selection.setAccessibility(.container, "Container", "", "", "");
         for (kids) |child| {
             var tmp = child;
-            tmp.select(selection);
+            var child_selection = Selection.init();
+            tmp.select(&child_selection);
+            if (child_selection.has_focus) {
+                selection.* = child_selection;
+                break;
+            }
         }
     }
 
@@ -873,10 +1015,91 @@ test "dbox aggregates by max width/height" {
 test "cursor decorator sets selection index and focus" {
     const child = Node{ .text = .{ .content = "abc" } };
     var n = Node{ .cursor = .{ .child = &child, .index = 2 } };
-    var sel: Selection = .{};
+    var sel = Selection.init();
     n.select(&sel);
     try std.testing.expect(sel.has_focus);
     try std.testing.expectEqual(@as(usize, 2), sel.cursor_index);
+}
+
+test "selection accessibility information for text node" {
+    const text_node = Node{ .text = .{ .content = "Hello" } };
+    var sel = Selection.init();
+    var mut_text = text_node;
+    mut_text.select(&sel);
+    try std.testing.expectEqual(AccessibilityRole.text, sel.role);
+    try std.testing.expectEqualStrings("Hello", sel.label);
+}
+
+test "selection accessibility information for window" {
+    const window_node = Node{ .window = .{ .title = "Test Window" } };
+    var sel = Selection.init();
+    var mut_window = window_node;
+    mut_window.select(&sel);
+    try std.testing.expectEqual(AccessibilityRole.container, sel.role);
+    try std.testing.expectEqualStrings("Test Window", sel.label);
+    try std.testing.expectEqualStrings("Window frame", sel.description);
+}
+
+test "selection cursor position tracking" {
+    const child = Node{ .text = .{ .content = "Hello\nWorld" } };
+    var n = Node{ .cursor = .{ .child = &child, .index = 7 } };
+    var sel = Selection.init();
+    n.select(&sel);
+    try std.testing.expect(sel.has_focus);
+    try std.testing.expectEqual(@as(usize, 7), sel.cursor_index);
+    try std.testing.expectEqual(AccessibilityRole.text_input, sel.role);
+}
+
+test "selection text selection range" {
+    var sel = Selection.init();
+    sel.setSelection(2, 5);
+    try std.testing.expect(sel.selection_start != null);
+    try std.testing.expect(sel.selection_end != null);
+    try std.testing.expectEqual(@as(usize, 2), sel.selection_start.?);
+    try std.testing.expectEqual(@as(usize, 5), sel.selection_end.?);
+
+    sel.clearSelection();
+    try std.testing.expect(sel.selection_start == null);
+    try std.testing.expect(sel.selection_end == null);
+}
+
+test "selection accessibility description generation" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    var sel = Selection.init();
+    sel.setAccessibility(.button, "Submit", "Click to submit form", "", "enabled");
+    const desc = try sel.getAccessibilityDescription(allocator);
+    defer allocator.free(desc);
+
+    try std.testing.expect(std.mem.indexOf(u8, desc, "Submit") != null);
+    try std.testing.expect(std.mem.indexOf(u8, desc, "enabled") != null);
+    try std.testing.expect(std.mem.indexOf(u8, desc, "Click to submit form") != null);
+}
+
+test "selection focus management" {
+    var sel = Selection.init();
+    try std.testing.expect(!sel.has_focus);
+
+    sel.setFocus();
+    try std.testing.expect(sel.has_focus);
+
+    sel.clearFocus();
+    try std.testing.expect(!sel.has_focus);
+}
+
+test "selection container finds focused child" {
+    const text_node = Node{ .text = .{ .content = "focused" } };
+    const focused_child = Node{ .cursor = .{ .child = &text_node, .index = 0 } };
+    const other_child = Node{ .text = .{ .content = "other" } };
+    var container_node = Node{ .container = .{
+        .children = &[_]Node{ other_child, focused_child },
+    } };
+    var sel = Selection.init();
+    container_node.select(&sel);
+    // Container should find and return the focused child's selection
+    try std.testing.expect(sel.has_focus);
 }
 
 test "flexbox setBox updates own box" {

@@ -13,7 +13,7 @@ Tasks derived from `docs/specification.md` to track coverage and implementation 
 ### Core
 - [x] Implement `Node` tagged union APIs for layout (`computeRequirement`, `setBox`), validation (`check`), rendering (`render`), and selection (`select`, `getSelectedContent`).
 - [x] Maintain `Requirement` struct fields for minimum sizes, flex factors, and focus metadata.
-- [ ] Keep `Selection` records wired into focus, cursor, and accessibility flows.
+- [x] Keep `Selection` records wired into focus, cursor, and accessibility flows.
 
 ### Layout & Widgets
 - [ ] Provide element builders in `elements.zig` (`text`, `paragraph*`, `window`, `gauge*`, `spinner`, `graph`, `canvas`, border and separator helpers`).
