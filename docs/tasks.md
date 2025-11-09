@@ -62,7 +62,7 @@ Tasks derived from `docs/specification.md` to track coverage and implementation 
   - [x] Text inputs (placeholder/password/multiline)
   - [x] Sliders
   - [x] Radio boxes
-  - [ ] Dropdowns
+  - [x] Dropdowns
   - [ ] Menus (animated)
   - [ ] Resizable splits
   - [ ] Modals

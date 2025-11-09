@@ -33,6 +33,33 @@ const RadioGroupState = struct {
     allocator: std.mem.Allocator,
 };
 
+const DropdownState = struct {
+    items: []const []const u8,
+    selected_index: ?usize,
+    is_open: bool,
+    placeholder: []const u8,
+    allocator: std.mem.Allocator,
+
+    fn ensureSelection(self: *DropdownState) void {
+        if (self.selected_index == null and self.items.len > 0) {
+            self.selected_index = 0;
+        } else if (self.items.len == 0) {
+            self.selected_index = null;
+        } else if (self.selected_index) |idx| {
+            if (idx >= self.items.len) {
+                self.selected_index = self.items.len - 1;
+            }
+        }
+    }
+
+    fn currentLabel(self: DropdownState) []const u8 {
+        if (self.selected_index) |idx| {
+            return self.items[idx];
+        }
+        return self.placeholder;
+    }
+};
+
 pub fn button(allocator: std.mem.Allocator, opts: options.ButtonOptions) !base.Component {
     const owned_label = try allocator.dupe(u8, opts.label);
     const component_ptr = try allocator.create(base.ComponentBase);
@@ -665,6 +692,141 @@ fn radioGroupEvent(self: *base.ComponentBase, event: events.Event) bool {
     return false;
 }
 
+pub fn dropdown(allocator: std.mem.Allocator, opts: options.DropdownOptions) !base.Component {
+    const items_copy = try allocator.alloc([]const u8, opts.items.len);
+    for (opts.items, 0..) |item_text, i| {
+        items_copy[i] = try allocator.dupe(u8, item_text);
+    }
+
+    const placeholder_copy = try allocator.dupe(u8, opts.placeholder);
+    const initial_index: ?usize = if (opts.items.len == 0) null else @min(opts.selected_index, opts.items.len - 1);
+    const state_ptr = try allocator.create(DropdownState);
+    state_ptr.* = .{
+        .items = items_copy,
+        .selected_index = initial_index,
+        .is_open = opts.is_open and opts.items.len > 0,
+        .placeholder = placeholder_copy,
+        .allocator = allocator,
+    };
+    state_ptr.ensureSelection();
+
+    const component_ptr = try allocator.create(base.ComponentBase);
+    component_ptr.* = base.ComponentBase{
+        .text_cache = "",
+        .user_data = @as(*anyopaque, @ptrCast(state_ptr)),
+        .renderFn = dropdownRender,
+        .eventFn = dropdownEvent,
+        .animationFn = null,
+        .children = &[_]base.Component{},
+        .focus_index = state_ptr.selected_index orelse 0,
+    };
+    return .{ .base = component_ptr };
+}
+
+fn dropdownRender(self: *base.ComponentBase) anyerror!void {
+    const stdout = std.fs.File.stdout();
+    const state = @as(*DropdownState, @ptrCast(@alignCast(self.user_data.?)));
+    const display_label = state.currentLabel();
+
+    try stdout.writeAll("[");
+    if (display_label.len > 0) {
+        try stdout.writeAll(display_label);
+    } else if (state.placeholder.len > 0) {
+        try stdout.writeAll(state.placeholder);
+    } else {
+        try stdout.writeAll("(none)");
+    }
+    if (state.is_open) {
+        try stdout.writeAll(" ^]");
+    } else {
+        try stdout.writeAll(" v]");
+    }
+
+    if (!state.is_open) return;
+
+    if (state.items.len == 0) {
+        try stdout.writeAll("\n  (no items)");
+        return;
+    }
+
+    for (state.items, 0..) |item_text, i| {
+        try stdout.writeAll("\n");
+        if (state.selected_index != null and state.selected_index.? == i) {
+            try stdout.writeAll("> ");
+        } else {
+            try stdout.writeAll("  ");
+        }
+        try stdout.writeAll(item_text);
+    }
+}
+
+fn dropdownEvent(self: *base.ComponentBase, event: events.Event) bool {
+    const state = @as(*DropdownState, @ptrCast(@alignCast(self.user_data.?)));
+    switch (event) {
+        .key => |k| {
+            if (k.arrow_key) |arrow| {
+                if (state.is_open and state.items.len > 0) {
+                    const delta: i32 = switch (arrow) {
+                        .up => -1,
+                        .down => 1,
+                        .left, .right => 0,
+                    };
+                    if (delta != 0 and dropdownMove(state, delta)) {
+                        self.focus_index = state.selected_index orelse 0;
+                        return true;
+                    }
+                }
+            }
+            if (k.codepoint) |cp| {
+                switch (cp) {
+                    ' ', '\n' => {
+                        dropdownToggle(state);
+                        self.focus_index = state.selected_index orelse 0;
+                        return true;
+                    },
+                    27 => { // escape closes menu
+                        if (state.is_open) {
+                            state.is_open = false;
+                            return true;
+                        }
+                    },
+                    else => {},
+                }
+            }
+        },
+        else => {},
+    }
+    return false;
+}
+
+fn dropdownMove(state: *DropdownState, delta: i32) bool {
+    state.ensureSelection();
+    if (state.selected_index == null or state.items.len == 0) return false;
+    const current = state.selected_index.?;
+    if (delta > 0) {
+        if (current >= state.items.len - 1) return false;
+        state.selected_index = current + 1;
+        return true;
+    } else if (delta < 0) {
+        if (current == 0) return false;
+        state.selected_index = current - 1;
+        return true;
+    }
+    return false;
+}
+
+fn dropdownToggle(state: *DropdownState) void {
+    if (state.items.len == 0) {
+        state.is_open = false;
+        state.selected_index = null;
+        return;
+    }
+    state.is_open = !state.is_open;
+    if (state.is_open) {
+        state.ensureSelection();
+    }
+}
+
 test "radio group initializes with selected index" {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
@@ -756,4 +918,65 @@ test "radio group handles space and enter keys" {
     const enter_consumed = rg.onEvent(.{ .key = .{ .codepoint = '\n' } });
     try std.testing.expect(enter_consumed);
     try std.testing.expectEqual(initial_index, state.selected_index);
+}
+
+test "dropdown toggles open state and closes with escape" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const items = [_][]const u8{ "Alpha", "Beta" };
+    const dd = try dropdown(allocator, .{ .items = &items, .placeholder = "Select" });
+    const state = @as(*DropdownState, @ptrCast(@alignCast(dd.base.user_data.?)));
+
+    try std.testing.expect(!state.is_open);
+    const toggled = dd.onEvent(.{ .key = .{ .codepoint = ' ' } });
+    try std.testing.expect(toggled);
+    try std.testing.expect(state.is_open);
+
+    const closed = dd.onEvent(.{ .key = .{ .codepoint = 27 } });
+    try std.testing.expect(closed);
+    try std.testing.expect(!state.is_open);
+}
+
+test "dropdown arrow navigation only works when open" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const items = [_][]const u8{ "Alpha", "Beta", "Gamma" };
+    const dd = try dropdown(allocator, .{ .items = &items, .selected_index = 0 });
+    const state = @as(*DropdownState, @ptrCast(@alignCast(dd.base.user_data.?)));
+
+    // Closed state should ignore arrows
+    const ignored = dd.onEvent(.{ .key = .{ .arrow_key = .down } });
+    try std.testing.expect(!ignored);
+    try std.testing.expectEqual(@as(usize, 0), state.selected_index.?);
+
+    _ = dd.onEvent(.{ .key = .{ .codepoint = '\n' } }); // open
+    _ = dd.onEvent(.{ .key = .{ .arrow_key = .down } });
+    try std.testing.expectEqual(@as(usize, 1), state.selected_index.?);
+    _ = dd.onEvent(.{ .key = .{ .arrow_key = .down } });
+    try std.testing.expectEqual(@as(usize, 2), state.selected_index.?);
+
+    // Should clamp at last item
+    const clamped = dd.onEvent(.{ .key = .{ .arrow_key = .down } });
+    try std.testing.expect(!clamped);
+    try std.testing.expectEqual(@as(usize, 2), state.selected_index.?);
+}
+
+test "dropdown handles empty item list with placeholder" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const dd = try dropdown(allocator, .{ .items = &[_][]const u8{}, .placeholder = "None" });
+    const state = @as(*DropdownState, @ptrCast(@alignCast(dd.base.user_data.?)));
+
+    try std.testing.expect(state.selected_index == null);
+    try std.testing.expectEqualStrings("None", state.placeholder);
+
+    const toggled = dd.onEvent(.{ .key = .{ .codepoint = ' ' } });
+    try std.testing.expect(!state.is_open);
+    try std.testing.expect(toggled); // still consumed even if no items (closes immediately)
 }

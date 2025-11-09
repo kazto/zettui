@@ -18,6 +18,8 @@ Note: Some Zig versions do not support `--global-cache-dir`. If the flag is unre
 - POSIX shells: `ZIG_GLOBAL_CACHE_DIR=./.zig-cache zig build` (and similarly for `zig test`/`zig run`)
 - PowerShell: `$Env:ZIG_GLOBAL_CACHE_DIR = ".\.zig-cache"; zig build`
 
+Sandbox limitation (Codex CLI): the workspace sits on an overlay filesystem that prevents Zig 0.15.x from renaming its `.zig-cache/tmp/*` directories into `.zig-cache/o/*`. Commands such as `zig build` or `zig test` therefore fail with `error: RenameAcrossMountPoints`. Run these builds outside the sandbox—or inside an environment without that mount mismatch—when you need executable artifacts or to verify tests.
+
 ## Coding Style & Naming Conventions
 Follow Zig style defaults: four-space indentation, `camelCase` for functions, `TitleCase` for types, and `snake_case` for constants defined with `const`. Avoid trailing whitespace and keep line length under 100 characters unless ASCII art or tables require more. Always run `zig fmt` to enforce canonical spacing, import ordering, and comment alignment. Prefer explicit enums and tagged unions to magic numbers, matching the structure outlined in the specification.
 

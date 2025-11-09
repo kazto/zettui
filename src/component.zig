@@ -15,6 +15,7 @@ pub const WindowOptions = options.WindowOptions;
 pub const CheckboxOptions = options.CheckboxOptions;
 pub const ToggleOptions = options.ToggleOptions;
 pub const RadioOptions = options.RadioOptions;
+pub const DropdownOptions = options.DropdownOptions;
 
 pub const Event = events.Event;
 pub const Mouse = events.Mouse;

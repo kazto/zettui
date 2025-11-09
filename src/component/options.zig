@@ -51,3 +51,10 @@ pub const RadioOptions = struct {
     labels: []const []const u8 = &[_][]const u8{},
     selected_index: usize = 0,
 };
+
+pub const DropdownOptions = struct {
+    items: []const []const u8 = &[_][]const u8{},
+    selected_index: usize = 0,
+    placeholder: []const u8 = "",
+    is_open: bool = false,
+};
