@@ -52,7 +52,7 @@ title: ncursesの後継者たち
 # いっぱいある。でもさ
 
 * ポータブルじゃなくない？
-* 各言語にロックインされてて他言語から使えない
+* 各言語にロックインされてて他言語から使いにくい
 * やはりcdeclで呼び出せないと
 
 ---
@@ -100,6 +100,7 @@ https://github.com/kazto/zettui
 # thanks
 
 * [k1LoW/deck](https://github.com/k1LoW/deck)
+  * https://github.com/k1LoW/deck
 
 ```qr
 https://github.com/k1LoW/deck
