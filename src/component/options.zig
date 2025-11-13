@@ -4,6 +4,9 @@ pub const ButtonOptions = struct {
 };
 
 pub const MenuOptions = struct {
+    items: []const []const u8 = &[_][]const u8{},
+    selected_index: usize = 0,
+    loop_navigation: bool = true,
     highlight_color: u24 = 0xFFFFFF,
     animation_enabled: bool = true,
 };
@@ -24,6 +27,16 @@ pub const SliderOptions = struct {
 pub const WindowOptions = struct {
     title: []const u8 = "",
     border: bool = true,
+};
+
+pub const SplitOrientation = enum { horizontal, vertical };
+
+pub const SplitOptions = struct {
+    orientation: SplitOrientation = .horizontal,
+    ratio: f32 = 0.5,
+    min_ratio: f32 = 0.1,
+    max_ratio: f32 = 0.9,
+    handle: []const u8 = "====",
 };
 
 pub const UnderlineOption = struct {
@@ -57,4 +70,23 @@ pub const DropdownOptions = struct {
     selected_index: usize = 0,
     placeholder: []const u8 = "",
     is_open: bool = false,
+};
+
+pub const ModalOptions = struct {
+    title: []const u8 = "Modal",
+    is_open: bool = true,
+    dismissible: bool = true,
+    width: usize = 32,
+};
+
+pub const CollapsibleOptions = struct {
+    label: []const u8 = "Section",
+    expanded: bool = false,
+    indicator_open: []const u8 = "[-]",
+    indicator_closed: []const u8 = "[+]",
+};
+
+pub const HoverOptions = struct {
+    hover_text: []const u8 = "(hovering)",
+    idle_text: []const u8 = "",
 };

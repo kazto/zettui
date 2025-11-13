@@ -7,7 +7,7 @@ Tasks derived from `docs/specification.md` to track coverage and implementation 
 - [x] Keep `build.zig` targets current for library, examples, docs, tests, fuzzers, and benchmarks; document standard `zig build` invocations.
 - [x] Curate `examples/` alongside documentation in `docs/` so demos track the latest module capabilities.
 - [ ] Enforce formatting via `zig fmt` and maintain helper scripts in `tools/` for linting or automation.
-- [ ] Ensure `zig build test`, `zig build fuzz`, and `zig build bench` cover all modules and report coverage gaps.
+- [ ] Ensure `zig build test` covers all modules and report coverage gaps. (Fuzz/bench harness omitted per current scope.)
 
 ## DOM Module
 ### Core
@@ -63,12 +63,12 @@ Tasks derived from `docs/specification.md` to track coverage and implementation 
   - [x] Sliders
   - [x] Radio boxes
   - [x] Dropdowns
-  - [ ] Menus (animated)
-  - [ ] Resizable splits
-  - [ ] Modals
-  - [ ] Collapsibles
-  - [ ] Hover wrappers
-  - [ ] Windows
+  - [x] Menus (animated)
+  - [x] Resizable splits
+  - [x] Modals
+  - [x] Collapsibles
+  - [x] Hover wrappers
+  - [x] Windows
 - [ ] Support renderer bridges and conditional presentation via `maybe` wrappers.
 
 ### Configuration

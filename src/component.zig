@@ -16,6 +16,11 @@ pub const CheckboxOptions = options.CheckboxOptions;
 pub const ToggleOptions = options.ToggleOptions;
 pub const RadioOptions = options.RadioOptions;
 pub const DropdownOptions = options.DropdownOptions;
+pub const SplitOptions = options.SplitOptions;
+pub const SplitOrientation = options.SplitOrientation;
+pub const ModalOptions = options.ModalOptions;
+pub const CollapsibleOptions = options.CollapsibleOptions;
+pub const HoverOptions = options.HoverOptions;
 
 pub const Event = events.Event;
 pub const Mouse = events.Mouse;

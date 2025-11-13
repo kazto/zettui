@@ -60,6 +60,53 @@ const DropdownState = struct {
     }
 };
 
+const MenuState = struct {
+    items: []const []const u8,
+    selected_index: usize,
+    loop_navigation: bool,
+    highlight_color: u24,
+    animation_enabled: bool,
+    phase: f32 = 0.0,
+};
+
+const SplitState = struct {
+    children: []base.Component,
+    ratio: f32,
+    min_ratio: f32,
+    max_ratio: f32,
+    orientation: options.SplitOrientation,
+    handle: []const u8,
+};
+
+const ModalState = struct {
+    child: base.Component,
+    title: []const u8,
+    is_open: bool,
+    dismissible: bool,
+    width: usize,
+};
+
+const CollapsibleState = struct {
+    child: base.Component,
+    label: []const u8,
+    expanded: bool,
+    indicator_open: []const u8,
+    indicator_closed: []const u8,
+};
+
+const HoverState = struct {
+    child: base.Component,
+    hovered: bool = false,
+    hover_text: []const u8,
+    idle_text: []const u8,
+};
+
+const WindowState = struct {
+    child: base.Component,
+    title: []const u8,
+    border: bool,
+};
+
 pub fn button(allocator: std.mem.Allocator, opts: options.ButtonOptions) !base.Component {
     const owned_label = try allocator.dupe(u8, opts.label);
     const component_ptr = try allocator.create(base.ComponentBase);
@@ -827,6 +874,435 @@ fn dropdownToggle(state: *DropdownState) void {
     }
 }
 
+pub fn menu(allocator: std.mem.Allocator, opts: options.MenuOptions) !base.Component {
+    const items_copy = try allocator.alloc([]const u8, opts.items.len);
+    for (opts.items, 0..) |item, idx| {
+        items_copy[idx] = try allocator.dupe(u8, item);
+    }
+    const selected = if (opts.items.len == 0) 0 else @min(opts.selected_index, opts.items.len - 1);
+    const state_ptr = try allocator.create(MenuState);
+    state_ptr.* = .{
+        .items = items_copy,
+        .selected_index = selected,
+        .loop_navigation = opts.loop_navigation,
+        .highlight_color = opts.highlight_color,
+        .animation_enabled = opts.animation_enabled,
+    };
+
+    const component_ptr = try allocator.create(base.ComponentBase);
+    component_ptr.* = base.ComponentBase{
+        .text_cache = "",
+        .user_data = @as(*anyopaque, @ptrCast(state_ptr)),
+        .renderFn = menuRender,
+        .eventFn = menuEvent,
+        .animationFn = menuAnimate,
+        .children = &[_]base.Component{},
+        .focus_index = selected,
+    };
+    return .{ .base = component_ptr };
+}
+
+fn menuRender(self: *base.ComponentBase) anyerror!void {
+    const stdout = std.fs.File.stdout();
+    const state = @as(*MenuState, @ptrCast(@alignCast(self.user_data.?)));
+    if (state.items.len == 0) {
+        try stdout.writeAll("(empty menu)\n");
+        return;
+    }
+    for (state.items, 0..) |item, idx| {
+        const active = idx == state.selected_index;
+        const pulse = if (state.animation_enabled and active and state.phase > 0.5) "*" else ">";
+        if (active) {
+            var buf: [96]u8 = undefined;
+            const msg = try std.fmt.bufPrint(&buf, "{s} {s} (0x{X:0>6})\n", .{ pulse, item, state.highlight_color });
+            try stdout.writeAll(msg);
+        } else {
+            try stdout.writeAll("  ");
+            try stdout.writeAll(item);
+            try stdout.writeAll("\n");
+        }
+    }
+}
+
+fn menuEvent(self: *base.ComponentBase, event: events.Event) bool {
+    const state = @as(*MenuState, @ptrCast(@alignCast(self.user_data.?)));
+    switch (event) {
+        .key => |k| {
+            if (state.items.len == 0) return false;
+            if (k.arrow_key) |arrow| {
+                const delta: i32 = switch (arrow) {
+                    .up => -1,
+                    .down => 1,
+                    .left, .right => 0,
+                };
+                if (delta != 0 and menuMove(state, delta)) {
+                    self.focus_index = state.selected_index;
+                    return true;
+                }
+            }
+            if (k.codepoint) |cp| {
+                if (cp == '\n' or cp == ' ') {
+                    return true;
+                }
+            }
+        },
+        else => {},
+    }
+    return false;
+}
+
+fn menuMove(state: *MenuState, delta: i32) bool {
+    if (state.items.len == 0) return false;
+    const count_i32 = @as(i32, @intCast(state.items.len));
+    var next = @as(i32, @intCast(state.selected_index)) + delta;
+    if (state.loop_navigation and count_i32 > 0) {
+        next = @mod(next + count_i32, count_i32);
+    } else {
+        next = @max(0, @min(next, count_i32 - 1));
+    }
+    const new_index = @as(usize, @intCast(next));
+    if (new_index == state.selected_index) return false;
+    state.selected_index = new_index;
+    return true;
+}
+
+fn menuAnimate(self: *base.ComponentBase, delta_time: f32) void {
+    const state = @as(*MenuState, @ptrCast(@alignCast(self.user_data.?)));
+    if (!state.animation_enabled) return;
+    state.phase += delta_time * 2.0;
+    if (state.phase >= 1.0) {
+        state.phase -= std.math.floor(state.phase);
+    }
+}
+
+pub fn split(allocator: std.mem.Allocator, first: base.Component, second: base.Component, opts: options.SplitOptions) !base.Component {
+    const children = try allocator.alloc(base.Component, 2);
+    children[0] = first;
+    children[1] = second;
+    const clamped_ratio = std.math.clamp(opts.ratio, opts.min_ratio, opts.max_ratio);
+    const state_ptr = try allocator.create(SplitState);
+    state_ptr.* = .{
+        .children = children,
+        .ratio = clamped_ratio,
+        .min_ratio = opts.min_ratio,
+        .max_ratio = opts.max_ratio,
+        .orientation = opts.orientation,
+        .handle = try allocator.dupe(u8, opts.handle),
+    };
+
+    const component_ptr = try allocator.create(base.ComponentBase);
+    component_ptr.* = base.ComponentBase{
+        .text_cache = "",
+        .user_data = @as(*anyopaque, @ptrCast(state_ptr)),
+        .renderFn = splitRender,
+        .eventFn = splitEvent,
+        .animationFn = null,
+        .children = children,
+        .focus_index = 0,
+    };
+    return .{ .base = component_ptr };
+}
+
+fn splitRender(self: *base.ComponentBase) anyerror!void {
+    const stdout = std.fs.File.stdout();
+    const state = @as(*SplitState, @ptrCast(@alignCast(self.user_data.?)));
+    if (state.children.len < 2) return;
+    try state.children[0].render();
+    try stdout.writeAll("\n");
+    var buf: [64]u8 = undefined;
+    const msg = try std.fmt.bufPrint(&buf, "{s} ratio={d:.2}", .{ state.handle, state.ratio });
+    try stdout.writeAll(msg);
+    try stdout.writeAll("\n");
+    try state.children[1].render();
+}
+
+fn splitEvent(self: *base.ComponentBase, event: events.Event) bool {
+    const state = @as(*SplitState, @ptrCast(@alignCast(self.user_data.?)));
+    switch (event) {
+        .key => |k| {
+            if (k.arrow_key) |arrow| {
+                const delta: f32 = switch (state.orientation) {
+                    .horizontal => switch (arrow) {
+                        .left => -0.05,
+                        .right => 0.05,
+                        else => 0.0,
+                    },
+                    .vertical => switch (arrow) {
+                        .up => -0.05,
+                        .down => 0.05,
+                        else => 0.0,
+                    },
+                };
+                if (delta != 0.0) {
+                    return splitAdjust(state, delta);
+                }
+            }
+        },
+        else => {},
+    }
+    return false;
+}
+
+fn splitAdjust(state: *SplitState, delta: f32) bool {
+    const next = std.math.clamp(state.ratio + delta, state.min_ratio, state.max_ratio);
+    if (next == state.ratio) return false;
+    state.ratio = next;
+    return true;
+}
+
+pub fn modal(allocator: std.mem.Allocator, child: base.Component, opts: options.ModalOptions) !base.Component {
+    const child_list = try allocator.alloc(base.Component, 1);
+    child_list[0] = child;
+    const title_copy = try allocator.dupe(u8, opts.title);
+    const state_ptr = try allocator.create(ModalState);
+    state_ptr.* = .{
+        .child = child,
+        .title = title_copy,
+        .is_open = opts.is_open,
+        .dismissible = opts.dismissible,
+        .width = opts.width,
+    };
+
+    const component_ptr = try allocator.create(base.ComponentBase);
+    component_ptr.* = base.ComponentBase{
+        .text_cache = "",
+        .user_data = @as(*anyopaque, @ptrCast(state_ptr)),
+        .renderFn = modalRender,
+        .eventFn = modalEvent,
+        .animationFn = null,
+        .children = child_list,
+        .focus_index = 0,
+    };
+    return .{ .base = component_ptr };
+}
+
+fn modalRender(self: *base.ComponentBase) anyerror!void {
+    const stdout = std.fs.File.stdout();
+    const state = @as(*ModalState, @ptrCast(@alignCast(self.user_data.?)));
+    if (!state.is_open) return;
+    const min_width: usize = state.title.len + 4;
+    const width = @max(state.width, min_width);
+
+    try stdout.writeAll("+");
+    try writeRepeating(stdout, '-', width - 2);
+    try stdout.writeAll("+\n");
+
+    try stdout.writeAll("| ");
+    try stdout.writeAll(state.title);
+    if (width > state.title.len + 3) {
+        try writeRepeating(stdout, ' ', width - state.title.len - 3);
+    }
+    try stdout.writeAll("|\n");
+
+    try state.child.render();
+
+    try stdout.writeAll("+");
+    try writeRepeating(stdout, '-', width - 2);
+    try stdout.writeAll("+\n");
+}
+
+fn writeRepeating(file: std.fs.File, ch: u8, count: usize) !void {
+    var i: usize = 0;
+    while (i < count) : (i += 1) {
+        try file.writeAll(&[_]u8{ch});
+    }
+}
+
+fn modalEvent(self: *base.ComponentBase, event: events.Event) bool {
+    const state = @as(*ModalState, @ptrCast(@alignCast(self.user_data.?)));
+    switch (event) {
+        .key => |k| {
+            if (state.is_open) {
+                if (k.codepoint) |cp| {
+                    if (cp == 27 and state.dismissible) {
+                        state.is_open = false;
+                        return true;
+                    }
+                }
+            } else {
+                if (k.codepoint) |cp| {
+                    if (cp == '\n' or cp == ' ') {
+                        state.is_open = true;
+                        return true;
+                    }
+                }
+            }
+        },
+        else => {},
+    }
+    if (state.is_open) {
+        return state.child.onEvent(event);
+    }
+    return false;
+}
+
+pub fn collapsible(allocator: std.mem.Allocator, child: base.Component, opts: options.CollapsibleOptions) !base.Component {
+    const child_list = try allocator.alloc(base.Component, 1);
+    child_list[0] = child;
+    const label_copy = try allocator.dupe(u8, opts.label);
+    const indicator_open = try allocator.dupe(u8, opts.indicator_open);
+    const indicator_closed = try allocator.dupe(u8, opts.indicator_closed);
+    const state_ptr = try allocator.create(CollapsibleState);
+    state_ptr.* = .{
+        .child = child,
+        .label = label_copy,
+        .expanded = opts.expanded,
+        .indicator_open = indicator_open,
+        .indicator_closed = indicator_closed,
+    };
+
+    const component_ptr = try allocator.create(base.ComponentBase);
+    component_ptr.* = base.ComponentBase{
+        .text_cache = "",
+        .user_data = @as(*anyopaque, @ptrCast(state_ptr)),
+        .renderFn = collapsibleRender,
+        .eventFn = collapsibleEvent,
+        .animationFn = null,
+        .children = child_list,
+        .focus_index = 0,
+    };
+    return .{ .base = component_ptr };
+}
+
+fn collapsibleRender(self: *base.ComponentBase) anyerror!void {
+    const stdout = std.fs.File.stdout();
+    const state = @as(*CollapsibleState, @ptrCast(@alignCast(self.user_data.?)));
+    const indicator = if (state.expanded) state.indicator_open else state.indicator_closed;
+    var buf: [128]u8 = undefined;
+    const line = try std.fmt.bufPrint(&buf, "{s} {s}\n", .{ indicator, state.label });
+    try stdout.writeAll(line);
+    if (state.expanded) {
+        try state.child.render();
+    }
+}
+
+fn collapsibleEvent(self: *base.ComponentBase, event: events.Event) bool {
+    const state = @as(*CollapsibleState, @ptrCast(@alignCast(self.user_data.?)));
+    switch (event) {
+        .key => |k| {
+            if (k.codepoint) |cp| {
+                if (cp == ' ' or cp == '\n') {
+                    state.expanded = !state.expanded;
+                    return true;
+                }
+            }
+        },
+        else => {},
+    }
+    if (state.expanded) {
+        return state.child.onEvent(event);
+    }
+    return false;
+}
+
+pub fn hoverWrapper(allocator: std.mem.Allocator, child: base.Component, opts: options.HoverOptions) !base.Component {
+    const child_list = try allocator.alloc(base.Component, 1);
+    child_list[0] = child;
+    const hover_copy = try allocator.dupe(u8, opts.hover_text);
+    const idle_copy = try allocator.dupe(u8, opts.idle_text);
+    const state_ptr = try allocator.create(HoverState);
+    state_ptr.* = .{
+        .child = child,
+        .hover_text = hover_copy,
+        .idle_text = idle_copy,
+    };
+
+    const component_ptr = try allocator.create(base.ComponentBase);
+    component_ptr.* = base.ComponentBase{
+        .text_cache = "",
+        .user_data = @as(*anyopaque, @ptrCast(state_ptr)),
+        .renderFn = hoverRender,
+        .eventFn = hoverEvent,
+        .animationFn = null,
+        .children = child_list,
+        .focus_index = 0,
+    };
+    return .{ .base = component_ptr };
+}
+
+fn hoverRender(self: *base.ComponentBase) anyerror!void {
+    const stdout = std.fs.File.stdout();
+    const state = @as(*HoverState, @ptrCast(@alignCast(self.user_data.?)));
+    try state.child.render();
+    const suffix = if (state.hovered) state.hover_text else state.idle_text;
+    if (suffix.len > 0) {
+        try stdout.writeAll("\n");
+        try stdout.writeAll(suffix);
+        try stdout.writeAll("\n");
+    } else {
+        try stdout.writeAll("\n");
+    }
+}
+
+fn hoverEvent(self: *base.ComponentBase, event: events.Event) bool {
+    const state = @as(*HoverState, @ptrCast(@alignCast(self.user_data.?)));
+    switch (event) {
+        .mouse => {
+            state.hovered = true;
+            _ = state.child.onEvent(event);
+            return true;
+        },
+        .custom => |c| {
+            if (std.mem.eql(u8, c.tag, "hover:leave")) {
+                state.hovered = false;
+                return true;
+            }
+        },
+        else => {},
+    }
+    if (state.hovered) {
+        return state.child.onEvent(event);
+    }
+    return false;
+}
+
+pub fn window(allocator: std.mem.Allocator, child: base.Component, opts: options.WindowOptions) !base.Component {
+    const child_list = try allocator.alloc(base.Component, 1);
+    child_list[0] = child;
+    const title_copy = try allocator.dupe(u8, opts.title);
+    const state_ptr = try allocator.create(WindowState);
+    state_ptr.* = .{
+        .child = child,
+        .title = title_copy,
+        .border = opts.border,
+    };
+
+    const component_ptr = try allocator.create(base.ComponentBase);
+    component_ptr.* = base.ComponentBase{
+        .text_cache = "",
+        .user_data = @as(*anyopaque, @ptrCast(state_ptr)),
+        .renderFn = windowRender,
+        .eventFn = windowEvent,
+        .animationFn = null,
+        .children = child_list,
+        .focus_index = 0,
+    };
+    return .{ .base = component_ptr };
+}
+
+fn windowRender(self: *base.ComponentBase) anyerror!void {
+    const stdout = std.fs.File.stdout();
+    const state = @as(*WindowState, @ptrCast(@alignCast(self.user_data.?)));
+    if (state.border) {
+        try stdout.writeAll("+ ");
+        try stdout.writeAll(state.title);
+        try stdout.writeAll(" +\n");
+    } else {
+        try stdout.writeAll("[");
+        try stdout.writeAll(state.title);
+        try stdout.writeAll("]\n");
+    }
+    try state.child.render();
+    if (state.border) {
+        try stdout.writeAll("+-----+\n");
+    }
+}
+
+fn windowEvent(self: *base.ComponentBase, event: events.Event) bool {
+    const state = @as(*WindowState, @ptrCast(@alignCast(self.user_data.?)));
+    return state.child.onEvent(event);
+}
+
 test "radio group initializes with selected index" {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
@@ -979,4 +1455,116 @@ test "dropdown handles empty item list with placeholder" {
     const toggled = dd.onEvent(.{ .key = .{ .codepoint = ' ' } });
     try std.testing.expect(!state.is_open);
     try std.testing.expect(toggled); // still consumed even if no items (closes immediately)
+}
+
+test "menu navigation loops and animates" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const items = [_][]const u8{ "One", "Two" };
+    const menu_component = try menu(allocator, .{ .items = &items, .selected_index = 0 });
+    const state = @as(*MenuState, @ptrCast(@alignCast(menu_component.base.user_data.?)));
+
+    try std.testing.expectEqual(@as(usize, 0), state.selected_index);
+    _ = menu_component.onEvent(.{ .key = .{ .arrow_key = .down } });
+    try std.testing.expectEqual(@as(usize, 1), state.selected_index);
+    _ = menu_component.onEvent(.{ .key = .{ .arrow_key = .down } });
+    try std.testing.expectEqual(@as(usize, 0), state.selected_index);
+
+    menu_component.base.animate(0.3);
+    try std.testing.expect(state.phase > 0);
+}
+
+test "split adjusts ratio with orientation aware arrows" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const left = try label(allocator, "Left");
+    const right = try label(allocator, "Right");
+    const split_component = try split(allocator, left, right, .{ .ratio = 0.4 });
+    const state = @as(*SplitState, @ptrCast(@alignCast(split_component.base.user_data.?)));
+    const initial = state.ratio;
+    _ = split_component.onEvent(.{ .key = .{ .arrow_key = .right } });
+    try std.testing.expect(state.ratio > initial);
+}
+
+test "modal closes on escape and reopens on enter" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const body = try label(allocator, "Body");
+    const modal_component = try modal(allocator, body, .{ .title = "Modal", .is_open = true });
+    const state = @as(*ModalState, @ptrCast(@alignCast(modal_component.base.user_data.?)));
+
+    const closed = modal_component.onEvent(.{ .key = .{ .codepoint = 27 } });
+    try std.testing.expect(closed);
+    try std.testing.expect(!state.is_open);
+
+    const reopened = modal_component.onEvent(.{ .key = .{ .codepoint = '\n' } });
+    try std.testing.expect(reopened);
+    try std.testing.expect(state.is_open);
+}
+
+test "collapsible toggles expansion with space" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const child = try label(allocator, "Details");
+    const coll = try collapsible(allocator, child, .{ .label = "Info" });
+    const state = @as(*CollapsibleState, @ptrCast(@alignCast(coll.base.user_data.?)));
+    try std.testing.expect(!state.expanded);
+    _ = coll.onEvent(.{ .key = .{ .codepoint = ' ' } });
+    try std.testing.expect(state.expanded);
+}
+
+test "hover wrapper tracks mouse enter and custom leave" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const child = try label(allocator, "Hover me");
+    const hover = try hoverWrapper(allocator, child, .{ .hover_text = "hovering" });
+    const state = @as(*HoverState, @ptrCast(@alignCast(hover.base.user_data.?)));
+
+    const entered = hover.onEvent(.{ .mouse = .{ .position = .{}, .buttons = .{} } });
+    try std.testing.expect(entered);
+    try std.testing.expect(state.hovered);
+
+    const left = hover.onEvent(.{ .custom = .{ .tag = "hover:leave" } });
+    try std.testing.expect(left);
+    try std.testing.expect(!state.hovered);
+}
+
+test "window forwards events to child" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    var triggered = false;
+    const child_ptr = try allocator.create(base.ComponentBase);
+    child_ptr.* = base.ComponentBase{
+        .text_cache = "",
+        .user_data = @as(*anyopaque, @ptrCast(&triggered)),
+        .renderFn = null,
+        .eventFn = struct {
+            fn handle(self: *base.ComponentBase, _: events.Event) bool {
+                const flag_ptr = @as(*bool, @ptrCast(self.user_data.?));
+                flag_ptr.* = true;
+                return true;
+            }
+        }.handle,
+        .animationFn = null,
+        .children = &[_]base.Component{},
+        .focus_index = 0,
+    };
+    const child_component = base.Component{ .base = child_ptr };
+    const window_component = try window(allocator, child_component, .{ .title = "Window" });
+
+    const consumed = window_component.onEvent(.{ .key = .{ .codepoint = 'x' } });
+    try std.testing.expect(consumed);
+    try std.testing.expect(triggered);
 }
