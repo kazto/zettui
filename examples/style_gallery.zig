@@ -57,11 +57,13 @@ fn renderColors(ctx: *zettui.dom.RenderContext, stdout: *std.fs.File, allocator:
     try stdout.writeAll("== Colors ==\n");
     const samples = [_]struct {
         label: []const u8,
-        fg: u24,
+        fg: ?u24 = null,
+        fg_palette: ?zettui.dom.PaletteColor = null,
         bg: ?u24 = null,
+        bg_palette: ?zettui.dom.PaletteColor = null,
         underline: bool = false,
     }{
-        .{ .label = "Crimson", .fg = 0xE32636 },
+        .{ .label = "Crimson (palette)", .fg_palette = .bright_red },
         .{ .label = "Emerald", .fg = 0x50C878 },
         .{ .label = "Azure", .fg = 0x007FFF },
         .{ .label = "Sunset on charcoal", .fg = 0xF97316, .bg = 0x1F2933 },
@@ -73,6 +75,8 @@ fn renderColors(ctx: *zettui.dom.RenderContext, stdout: *std.fs.File, allocator:
         const attrs = zettui.dom.StyleAttributes{
             .fg = sample.fg,
             .bg = sample.bg,
+            .fg_palette = sample.fg_palette,
+            .bg_palette = sample.bg_palette,
             .underline = sample.underline,
         };
         const node = try zettui.dom.elements.styleOwned(

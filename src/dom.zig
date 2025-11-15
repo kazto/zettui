@@ -8,6 +8,7 @@ pub const Selection = node.Selection;
 pub const AccessibilityRole = node.AccessibilityRole;
 pub const RenderContext = node.RenderContext;
 pub const StyleAttributes = node.StyleAttributes;
+pub const PaletteColor = node.PaletteColor;
 
 pub const FocusPosition = node.FocusPosition;
 pub const ScrollIndicator = node.ScrollIndicator;
@@ -15,9 +16,11 @@ pub const ScrollIndicator = node.ScrollIndicator;
 pub const elements = elements_mod;
 
 pub fn styleToCellStyle(style: StyleAttributes, default_fg: u24, default_bg: u24) screen_mod.CellStyle {
+    const fg_value = if (style.fg) |color| color else if (style.fg_palette) |entry| node.paletteColorValue(entry) else default_fg;
+    const bg_value = if (style.bg) |color| color else if (style.bg_palette) |entry| node.paletteColorValue(entry) else default_bg;
     return .{
-        .fg = style.fg orelse default_fg,
-        .bg = style.bg orelse default_bg,
+        .fg = fg_value,
+        .bg = bg_value,
         .style = .{
             .bold = style.bold,
             .italic = style.italic,

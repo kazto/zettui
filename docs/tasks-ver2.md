@@ -4,7 +4,7 @@ Zettui と FTXUI の例を比較して不足している機能を分類したチ
 
 ## DOM
 - [x] スタイル装飾 (bold/italic/underline/double underline/strikethrough/dim/blink/inverted/hyperlink/color/gradient)
-- [ ] パレット/true-color などの色指定サポート
+- [x] パレット/true-color などの色指定サポート
 - [ ] 線スタイルつき border / border_colored
 - [ ] gridbox/table/hflow/vflow/html_like/tree (package_manager) などのレイアウト
 - [ ] linear_gradient DOM ノード

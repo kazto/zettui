@@ -116,6 +116,25 @@ pub const Selection = struct {
     }
 };
 
+pub const PaletteColor = enum {
+    black,
+    red,
+    green,
+    yellow,
+    blue,
+    magenta,
+    cyan,
+    white,
+    bright_black,
+    bright_red,
+    bright_green,
+    bright_yellow,
+    bright_blue,
+    bright_magenta,
+    bright_cyan,
+    bright_white,
+};
+
 pub const StyleAttributes = struct {
     bold: bool = false,
     italic: bool = false,
@@ -127,7 +146,36 @@ pub const StyleAttributes = struct {
     inverse: bool = false,
     fg: ?u24 = null,
     bg: ?u24 = null,
+    fg_palette: ?PaletteColor = null,
+    bg_palette: ?PaletteColor = null,
 };
+
+pub fn paletteColorValue(color: PaletteColor) u24 {
+    return switch (color) {
+        .black => 0x000000,
+        .red => 0xAA0000,
+        .green => 0x008800,
+        .yellow => 0xAA5500,
+        .blue => 0x0000AA,
+        .magenta => 0xAA00AA,
+        .cyan => 0x00AAAA,
+        .white => 0xAAAAAA,
+        .bright_black => 0x555555,
+        .bright_red => 0xFF5555,
+        .bright_green => 0x55FF55,
+        .bright_yellow => 0xFFFF55,
+        .bright_blue => 0x5555FF,
+        .bright_magenta => 0xFF55FF,
+        .bright_cyan => 0x55FFFF,
+        .bright_white => 0xFFFFFF,
+    };
+}
+
+fn resolveColor(explicit: ?u24, palette: ?PaletteColor, default_color: u24) u24 {
+    if (explicit) |c| return c;
+    if (palette) |entry| return paletteColorValue(entry);
+    return default_color;
+}
 
 pub const RenderContext = struct {
     allow_hyperlinks: bool = false,
@@ -162,7 +210,9 @@ fn stylesEqual(a: StyleAttributes, b: StyleAttributes) bool {
         a.blink == b.blink and
         a.inverse == b.inverse and
         a.fg == b.fg and
-        a.bg == b.bg;
+        a.bg == b.bg and
+        a.fg_palette == b.fg_palette and
+        a.bg_palette == b.bg_palette;
 }
 
 fn mergeStyles(base: StyleAttributes, overlay: StyleAttributes) StyleAttributes {
@@ -177,6 +227,8 @@ fn mergeStyles(base: StyleAttributes, overlay: StyleAttributes) StyleAttributes 
         .inverse = base.inverse or overlay.inverse,
         .fg = overlay.fg orelse base.fg,
         .bg = overlay.bg orelse base.bg,
+        .fg_palette = overlay.fg_palette orelse base.fg_palette,
+        .bg_palette = overlay.bg_palette orelse base.bg_palette,
     };
 }
 
@@ -191,8 +243,10 @@ fn applyAnsiStyle(ctx: *RenderContext, style: StyleAttributes) !void {
     if (style.inverse) try ctxWrite(ctx, "\x1b[7m");
     if (style.strikethrough) try ctxWrite(ctx, "\x1b[9m");
     if (style.underline_double) try ctxWrite(ctx, "\x1b[21m");
-    if (style.fg) |color| try writeRgb(ctx, color, true);
-    if (style.bg) |color| try writeRgb(ctx, color, false);
+    const fg_value = resolveColor(style.fg, style.fg_palette, 0xFFFFFF);
+    const bg_value = resolveColor(style.bg, style.bg_palette, 0x000000);
+    if (style.fg != null or style.fg_palette != null) try writeRgb(ctx, fg_value, true);
+    if (style.bg != null or style.bg_palette != null) try writeRgb(ctx, bg_value, false);
 }
 
 fn writeRgb(ctx: *RenderContext, color: u24, is_fg: bool) !void {
@@ -1248,6 +1302,33 @@ test "style decorator emits ansi sequences when rendering" {
     try std.testing.expect(std.mem.indexOf(u8, buffer.items, "\x1b[1m") != null);
     try std.testing.expect(std.mem.indexOf(u8, buffer.items, "\x1b[38;2;17;34;51m") != null);
     try std.testing.expect(std.mem.endsWith(u8, buffer.items, "\x1b[0m"));
+}
+
+test "style decorator supports palette colors" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const alloc = arena.allocator();
+
+    const child_ptr = try alloc.create(Node);
+    child_ptr.* = Node{ .text = .{ .content = "pal" } };
+    const styled = Node{
+        .style = .{ .child = child_ptr, .attrs = .{ .fg_palette = .bright_red } },
+    };
+
+    var buffer = std.array_list.Managed(u8).init(alloc);
+    defer buffer.deinit();
+    const SinkWriter = struct {
+        fn write(user_data: *anyopaque, data: []const u8) anyerror!void {
+            const buf = @as(*std.array_list.Managed(u8), @ptrCast(@alignCast(user_data)));
+            try buf.appendSlice(data);
+        }
+    };
+
+    var ctx = RenderContext{
+        .sink = .{ .user_data = @as(*anyopaque, @ptrCast(&buffer)), .writeAll = SinkWriter.write },
+    };
+    try styled.render(&ctx);
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "\x1b[38;2;255;85;85m") != null);
 }
 
 test "frame requirement adds borders" {

@@ -193,3 +193,13 @@ pub fn styleBoldOwned(allocator: std.mem.Allocator, child: node.Node) !node.Node
 pub fn styleColorOwned(allocator: std.mem.Allocator, child: node.Node, fg: ?u24, bg: ?u24) !node.Node {
     return styleOwned(allocator, child, .{ .fg = fg, .bg = bg });
 }
+
+pub fn stylePalettePtr(child: *const node.Node, fg: ?node.PaletteColor, bg: ?node.PaletteColor) node.Node {
+    return .{ .style = .{ .child = child, .attrs = .{ .fg_palette = fg, .bg_palette = bg } } };
+}
+
+pub fn stylePaletteOwned(allocator: std.mem.Allocator, child: node.Node, fg: ?node.PaletteColor, bg: ?node.PaletteColor) !node.Node {
+    const ptr = try allocator.create(node.Node);
+    ptr.* = child;
+    return stylePalettePtr(ptr, fg, bg);
+}
