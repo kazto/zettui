@@ -116,6 +116,22 @@ pub fn build(b: *std.Build) void {
     const run_style_gallery_step = b.step("run:style-gallery", "Run the DOM style/color gallery demo");
     run_style_gallery_step.dependOn(&run_style_gallery.step);
 
+    // Canvas builder demo
+    const canvas_demo_module = b.createModule(.{
+        .root_source_file = b.path("examples/canvas_demo.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "zettui", .module = zettui_module }},
+    });
+    const canvas_demo_exe = b.addExecutable(.{
+        .name = "zettui-canvas-demo",
+        .root_module = canvas_demo_module,
+    });
+    b.installArtifact(canvas_demo_exe);
+    const run_canvas_demo = b.addRunArtifact(canvas_demo_exe);
+    const run_canvas_step = b.step("run:canvas", "Run the canvas builder demo");
+    run_canvas_step.dependOn(&run_canvas_demo.step);
+
     // Interaction demo (keyboard/mouse simulation)
     const interaction_module = b.createModule(.{
         .root_source_file = b.path("examples/interaction_demo.zig"),

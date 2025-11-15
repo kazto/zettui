@@ -1,5 +1,6 @@
 const node = @import("dom/node.zig");
 const elements_mod = @import("dom/elements.zig");
+const canvas_mod = @import("dom/canvas_builder.zig");
 const screen_mod = @import("screen.zig");
 
 pub const Node = node.Node;
@@ -14,6 +15,7 @@ pub const FocusPosition = node.FocusPosition;
 pub const ScrollIndicator = node.ScrollIndicator;
 
 pub const elements = elements_mod;
+pub const canvas = canvas_mod;
 
 pub fn styleToCellStyle(style: StyleAttributes, default_fg: u24, default_bg: u24) screen_mod.CellStyle {
     const fg_value = if (style.fg) |color| color else if (style.fg_palette) |entry| node.paletteColorValue(entry) else default_fg;

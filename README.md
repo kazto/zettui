@@ -12,6 +12,7 @@ Zettui は Zig で書かれたターミナル UI ツールキットです。`src
 - `zig build run:spin` – スピナーアニメーション
 - `zig build run:interaction` – キー/マウスコマンドでメニュー選択とボタンクリックをシミュレート
 - `docs/examples/gauge_variants.md` – 水平/垂直ゲージのスニペットと参照デモ
+- `zig build run:canvas` – CanvasBuilder で描画・アニメーションするデモ
 
 `zig build run:style-gallery` は stdout に ANSI カラー付きで見出しを描画するため、Screen アダプタを介さずに新しいスタイリング API を確認できます。
 
