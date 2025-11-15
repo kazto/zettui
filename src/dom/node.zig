@@ -549,7 +549,11 @@ pub const Node = union(enum) {
                 const bottom_left = border.bottom_left;
                 const bottom_right = border.bottom_right;
                 const saved = ctx.style;
-                ctx.style = mergeStyles(ctx.style, .{ .fg = f.border.fg, .fg_palette = f.border.fg_palette });
+                const border_style = mergeStyles(ctx.style, .{ .fg = f.border.fg, .fg_palette = f.border.fg_palette });
+                if (!stylesEqual(ctx.style, border_style) and ctx.drawer == null) {
+                    try applyAnsiStyle(ctx, border_style);
+                }
+                ctx.style = border_style;
                 try frameWrite(ctx, ctx.origin_x, ctx.origin_y, top_left);
                 var h: usize = 0;
                 while (h < inner_w) : (h += 1) try frameWrite(ctx, ctx.origin_x + @as(i32, @intCast(h + 1)), ctx.origin_y, horizontal);
