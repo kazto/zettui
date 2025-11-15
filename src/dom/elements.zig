@@ -221,3 +221,13 @@ pub fn linearGradient(content: []const u8, start_color: u24, end_color: u24) nod
         .end_color = end_color,
     } };
 }
+
+pub fn gridbox(rows: [][]const node.Node, column_gap: usize, row_gap: usize) node.Node {
+    return .{
+        .gridbox = .{
+            .cells = rows,
+            .column_gap = column_gap,
+            .row_gap = row_gap,
+        },
+    };
+}
