@@ -77,11 +77,30 @@ fn renderDomDashboard(stdout: std.fs.File, allocator: std.mem.Allocator) !void {
     });
 
     const badge_caption = try zettui.dom.elements.styleOwned(a, zettui.dom.elements.paragraph("ASCII canvas nodes mix art + layout.", 26), .{ .fg = 0xFBBF24 });
+    const vertical_gauge_label = try zettui.dom.elements.styleOwned(
+        a,
+        zettui.dom.elements.text("Vertical gauge (60%)"),
+        .{ .bold = true, .fg = 0xF472B6 },
+    );
+    const vertical_gauge = try zettui.dom.elements.styleOwned(
+        a,
+        zettui.dom.elements.gaugeVerticalHeight(0.6, 9),
+        .{ .fg = 0x34D399 },
+    );
+    const vertical_gauge_caption = try zettui.dom.elements.styleOwned(
+        a,
+        zettui.dom.elements.paragraph("Use gaugeVerticalHeight for stacked fill bars.", 28),
+        .{ .fg = 0xA855F7 },
+    );
 
     const right_column = zettui.dom.elements.vbox(&[_]zettui.dom.Node{
         zettui.dom.elements.window("Canvas badge"),
         framed_badge,
         badge_caption,
+        zettui.dom.elements.separator(.horizontal),
+        vertical_gauge_label,
+        vertical_gauge,
+        vertical_gauge_caption,
     });
 
     const dashboard = zettui.dom.elements.flexboxRow(&[_]zettui.dom.Node{
