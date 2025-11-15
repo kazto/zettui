@@ -3,98 +3,131 @@ const zettui = @import("zettui");
 
 pub fn main() !void {
     const allocator = std.heap.page_allocator;
-
-    var screen = try zettui.screen.Screen.init(allocator, 32, 4);
+    var screen = try zettui.screen.Screen.init(allocator, 64, 12);
     defer allocator.free(screen.image.pixels);
 
+    const stdout = std.fs.File.stdout();
+    try renderScreenShowcase(&screen, stdout);
+
+    try stdout.writeAll("\nDOM dashboard:\n");
+    try renderDomDashboard(stdout, allocator);
+
+    try stdout.writeAll("\nComponent buttons:\n");
+    try renderButtonGallery(stdout, allocator);
+}
+
+fn renderScreenShowcase(screen: *zettui.screen.Screen, stdout: std.fs.File) !void {
     screen.clear(.{
         .glyph = " ",
-        .fg = 0xFFFFFF,
-        .bg = 0x000000,
+        .fg = 0xE0E0E0,
+        .bg = 0x101010,
     });
 
-    screen.drawString(2, 1, "Zettui demo");
+    drawHorizontalLine(screen, 0, "=");
+    drawHorizontalLine(screen, screen.image.height - 1, "=");
 
-    const stdout = std.fs.File.stdout();
+    const accent = zettui.screen.CellStyle{ .fg = 0xF97316 };
+    const accent2 = zettui.screen.CellStyle{ .fg = 0xA855F7 };
+    screen.drawStyledString(2, 1, "Zettui showcase", accent);
+    screen.drawStyledString(2, 3, "Screen + DOM + Components", .{ .fg = 0x7DD3FC });
+    screen.drawStyledString(2, 5, "Inspired by the FTXUI gallery", accent2);
+    screen.drawStyledString(2, 7, "Build rich terminal UIs from Zig", .{ .fg = 0x22D3EE });
+
     try screen.present(stdout);
+}
 
-    // Simple DOM showcase
-    var ctx: zettui.dom.RenderContext = .{};
-    try stdout.writeAll("\nDOM elements:\n");
-    {
-        var wnd = zettui.dom.Node{ .window = .{ .title = "Window" } };
-        try wnd.render(&ctx);
-        try stdout.writeAll("\n");
-        var sep = zettui.dom.Node{ .separator = .{} };
-        try sep.render(&ctx);
-        var g = zettui.dom.Node{ .gauge = .{ .fraction = 0.5 } };
-        try g.render(&ctx);
-        try stdout.writeAll(" ");
-        var sp = zettui.dom.Node{ .spinner = .{} };
-        try sp.render(&ctx);
-        try stdout.writeAll("\n");
-
-        // Frame around a child node (owned)
-        var dom_arena = std.heap.ArenaAllocator.init(allocator);
-        defer dom_arena.deinit();
-        const da = dom_arena.allocator();
-        var fr = try zettui.dom.elements.frameOwned(da, zettui.dom.elements.text("framed"));
-        try fr.render(&ctx);
-
-        // Paragraph wrapped to width 16
-        try stdout.writeAll("Paragraph (w=16):\n");
-        var para = zettui.dom.elements.paragraph(
-            "This is a wrapped paragraph demo.",
-            16,
-        );
-        try para.render(&ctx);
-        try stdout.writeAll("\n");
+fn drawHorizontalLine(screen: *zettui.screen.Screen, y: usize, glyph: []const u8) void {
+    var col: usize = 0;
+    while (col < screen.image.width) : (col += 1) {
+        screen.drawString(col, y, glyph);
     }
+}
 
-    // Simple Component showcase
-    try stdout.writeAll("\nComponents:\n");
+fn renderDomDashboard(stdout: std.fs.File, allocator: std.mem.Allocator) !void {
+    var ctx: zettui.dom.RenderContext = .{};
     var arena = std.heap.ArenaAllocator.init(allocator);
     defer arena.deinit();
     const a = arena.allocator();
 
-    const btn = try zettui.component.widgets.button(a, .{ .label = "OK" });
-    try btn.render();
+    const metrics = [_]f32{ 0.2, 0.45, 0.35, 0.65, 0.9, 0.75, 0.55, 0.6, 0.78, 0.5, 0.62, 0.7 };
+    const sparkline = zettui.dom.elements.graphWidth(&metrics, 28, 6);
+    const badge_rows = [_][]const u8{
+        " /‾‾‾\\ ",
+        "/ zet \\",
+        "| tui |",
+        "\\_____/ ",
+    };
+    const badge = zettui.dom.elements.canvasSized(&badge_rows, 12, 4);
+    const framed_badge = try zettui.dom.elements.frameOwned(a, badge);
+
+    const highlight_label = try zettui.dom.elements.styleOwned(a, zettui.dom.elements.paragraph("Release readiness", 20), .{ .bold = true, .fg = 0xF97316 });
+    const stats = zettui.dom.elements.flexboxRow(&[_]zettui.dom.Node{
+        highlight_label,
+        zettui.dom.elements.gaugeWidth(0.82, 16),
+        zettui.dom.elements.spinner(),
+    }, 2);
+
+    const sparkline_caption = try zettui.dom.elements.styleOwned(a, zettui.dom.elements.paragraph("Sparkline rendered via DOM graph node.", 28), .{ .fg = 0x7DD3FC });
+
+    const left_column = zettui.dom.elements.vbox(&[_]zettui.dom.Node{
+        zettui.dom.elements.window("Live metrics"),
+        stats,
+        sparkline_caption,
+        sparkline,
+    });
+
+    const badge_caption = try zettui.dom.elements.styleOwned(a, zettui.dom.elements.paragraph("ASCII canvas nodes mix art + layout.", 26), .{ .fg = 0xFBBF24 });
+
+    const right_column = zettui.dom.elements.vbox(&[_]zettui.dom.Node{
+        zettui.dom.elements.window("Canvas badge"),
+        framed_badge,
+        badge_caption,
+    });
+
+    const dashboard = zettui.dom.elements.flexboxRow(&[_]zettui.dom.Node{
+        left_column,
+        zettui.dom.elements.separator(.vertical),
+        right_column,
+    }, 3);
+
+    try dashboard.render(&ctx);
     try stdout.writeAll("\n");
+}
 
-    const cb = try zettui.component.widgets.checkbox(a, .{ .label = "Accept", .checked = false });
-    try cb.render();
-    try stdout.writeAll("\n");
+fn renderButtonGallery(stdout: std.fs.File, allocator: std.mem.Allocator) !void {
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
 
-    const tog = try zettui.component.widgets.toggle(a, .{ .on_label = "ON", .off_label = "OFF", .on = true });
-    try tog.render();
-    try stdout.writeAll("\n");
+    try renderButtonRow(stdout, a, "Primary actions", &[_][]const u8{ "New project", "Build", "Deploy" });
+    try renderButtonRow(stdout, a, "Utility actions", &[_][]const u8{ "Settings", "Logs", "Help" });
+    try renderButtonRow(stdout, a, "Media transport", &[_][]const u8{ "Play", "Pause", "Stop", "Record" });
 
-    // DOM rendering via Screen drawer (coordinate-aware)
-    try stdout.writeAll("\nDOM drawer demo (Screen):\n");
-    screen.clear(.{ .glyph = " ", .fg = 0xFFFFFF, .bg = 0x000000 });
+    try stdout.writeAll("\nButtons stay simple today, but onEvent hooks enable\ninteractivity similar to the FTXUI button examples.\n");
+}
 
-    const Adapter = struct {
-        fn draw(user_data: *anyopaque, x: i32, y: i32, text: []const u8) anyerror!void {
-            const scr = @as(*zettui.screen.Screen, @ptrCast(@alignCast(user_data)));
-            if (x >= 0 and y >= 0) {
-                scr.drawString(@as(usize, @intCast(x)), @as(usize, @intCast(y)), text);
-            }
+fn renderButtonRow(
+    stdout: std.fs.File,
+    allocator: std.mem.Allocator,
+    title: []const u8,
+    labels: []const []const u8,
+) !void {
+    var heading_ctx: zettui.dom.RenderContext = .{};
+    const heading = try zettui.dom.elements.styleOwned(
+        allocator,
+        zettui.dom.elements.text(title),
+        .{ .bold = true, .fg = 0xF97316 },
+    );
+    try heading.render(&heading_ctx);
+    try stdout.writeAll("\n    ");
+
+    for (labels, 0..) |label, idx| {
+        const btn = try zettui.component.widgets.button(allocator, .{ .label = label });
+        try btn.render();
+        if (idx + 1 < labels.len) {
+            try stdout.writeAll("  ");
         }
-    };
+    }
 
-    var ctx2: zettui.dom.RenderContext = .{
-        .sink = null,
-        .drawer = .{ .user_data = @as(*anyopaque, @ptrCast(&screen)), .drawText = Adapter.draw },
-        .origin_x = 1,
-        .origin_y = 0,
-        .allocator = a,
-    };
-
-    const row = zettui.dom.elements.flexboxRow(&[_]zettui.dom.Node{
-        zettui.dom.elements.text("Hello"),
-        zettui.dom.elements.gaugeWidth(0.6, 10),
-        zettui.dom.elements.paragraph("wrap", 2),
-    }, 1);
-    try row.render(&ctx2);
-    try screen.present(stdout);
+    try stdout.writeAll("\n");
 }

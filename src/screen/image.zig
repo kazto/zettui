@@ -37,8 +37,20 @@ pub const Image = struct {
     }
 };
 
+pub const TextStyle = struct {
+    bold: bool = false,
+    italic: bool = false,
+    underline: bool = false,
+    underline_double: bool = false,
+    strikethrough: bool = false,
+    dim: bool = false,
+    blink: bool = false,
+    inverse: bool = false,
+};
+
 pub const Pixel = struct {
     glyph: []const u8 = glyphFromByte(' '),
     fg: u24 = 0xFFFFFF,
     bg: u24 = 0x000000,
+    style: TextStyle = .{},
 };

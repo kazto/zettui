@@ -40,7 +40,7 @@ Tasks derived from `docs/specification.md` to track coverage and implementation 
     - [x] cursor modifiers
 
 ### Styling
-- [ ] Maintain decorators for typography, color/gradient layers, selection styling, hyperlinks, centering helpers, and `automerge`.
+- [x] Maintain decorators for typography, color/gradient layers, selection styling, hyperlinks, centering helpers, and `automerge`. (See `examples/style_gallery.zig` via `zig build run:style-gallery`.)
 - [ ] Expose viewport tuning via `FocusPosition` enums and scroll indicator helpers.
 
 ### Advanced

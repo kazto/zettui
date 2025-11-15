@@ -11,10 +11,16 @@ pub fn main() !void {
 
     // Drawer adapter bridging DOM RenderContext to Screen
     const Adapter = struct {
-        fn draw(user_data: *anyopaque, x: i32, y: i32, text: []const u8) anyerror!void {
+        fn draw(user_data: *anyopaque, x: i32, y: i32, text: []const u8, style: zettui.dom.StyleAttributes) anyerror!void {
             const scr = @as(*zettui.screen.Screen, @ptrCast(@alignCast(user_data)));
             if (x >= 0 and y >= 0) {
-                scr.drawString(@as(usize, @intCast(x)), @as(usize, @intCast(y)), text);
+                const cell_style = zettui.dom.styleToCellStyle(style, 0xFFFFFF, 0x000000);
+                scr.drawStyledString(
+                    @as(usize, @intCast(x)),
+                    @as(usize, @intCast(y)),
+                    text,
+                    cell_style,
+                );
             }
         }
     };
@@ -42,22 +48,23 @@ pub fn main() !void {
     };
     const ascii_badge = zettui.dom.elements.canvasSized(&badge_rows, 6, 4);
 
+    const stats_label = try zettui.dom.elements.styleOwned(a, zettui.dom.elements.text("Stats"), .{ .bold = true, .fg = 0xEAB308 });
     const top_row = zettui.dom.elements.flexboxRow(&[_]zettui.dom.Node{
-        zettui.dom.elements.window("Stats"),
+        stats_label,
         zettui.dom.elements.gaugeWidth(0.75, 20),
-        zettui.dom.elements.paragraph("CPU RAM", 3),
+        try zettui.dom.elements.styleOwned(a, zettui.dom.elements.paragraph("CPU RAM", 3), .{ .fg = 0x93C5FD }),
     }, 2);
 
     const viz_row = zettui.dom.elements.flexboxRow(&[_]zettui.dom.Node{
-        sparkline,
+        try zettui.dom.elements.styleOwned(a, sparkline, .{ .fg = 0x22D3EE }),
         zettui.dom.elements.separator(.vertical),
-        ascii_badge,
+        try zettui.dom.elements.styleOwned(a, ascii_badge, .{ .fg = 0xF97316 }),
     }, 2);
 
     const bottom_row = zettui.dom.elements.flexboxRow(&[_]zettui.dom.Node{
-        zettui.dom.elements.text("Ready"),
-        zettui.dom.elements.text("|"),
-        zettui.dom.elements.text("Press Q to quit"),
+        try zettui.dom.elements.styleOwned(a, zettui.dom.elements.text("Ready"), .{ .fg = 0x34D399 }),
+        try zettui.dom.elements.styleOwned(a, zettui.dom.elements.text("|"), .{ .dim = true }),
+        try zettui.dom.elements.styleOwned(a, zettui.dom.elements.text("Press Q to quit"), .{ .fg = 0xF472B6 }),
     }, 1);
 
     const root = zettui.dom.elements.vbox(&[_]zettui.dom.Node{ top_row, viz_row, bottom_row });

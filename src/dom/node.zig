@@ -116,6 +116,19 @@ pub const Selection = struct {
     }
 };
 
+pub const StyleAttributes = struct {
+    bold: bool = false,
+    italic: bool = false,
+    underline: bool = false,
+    underline_double: bool = false,
+    strikethrough: bool = false,
+    dim: bool = false,
+    blink: bool = false,
+    inverse: bool = false,
+    fg: ?u24 = null,
+    bg: ?u24 = null,
+};
+
 pub const RenderContext = struct {
     allow_hyperlinks: bool = false,
     sink: ?Sink = null,
@@ -123,6 +136,7 @@ pub const RenderContext = struct {
     origin_x: i32 = 0,
     origin_y: i32 = 0,
     allocator: ?std.mem.Allocator = null,
+    style: StyleAttributes = .{},
 };
 
 pub const Sink = struct {
@@ -136,6 +150,60 @@ fn ctxWrite(ctx: *RenderContext, data: []const u8) !void {
     } else {
         try std.fs.File.stdout().writeAll(data);
     }
+}
+
+fn stylesEqual(a: StyleAttributes, b: StyleAttributes) bool {
+    return a.bold == b.bold and
+        a.italic == b.italic and
+        a.underline == b.underline and
+        a.underline_double == b.underline_double and
+        a.strikethrough == b.strikethrough and
+        a.dim == b.dim and
+        a.blink == b.blink and
+        a.inverse == b.inverse and
+        a.fg == b.fg and
+        a.bg == b.bg;
+}
+
+fn mergeStyles(base: StyleAttributes, overlay: StyleAttributes) StyleAttributes {
+    return .{
+        .bold = base.bold or overlay.bold,
+        .italic = base.italic or overlay.italic,
+        .underline = base.underline or overlay.underline,
+        .underline_double = base.underline_double or overlay.underline_double,
+        .strikethrough = base.strikethrough or overlay.strikethrough,
+        .dim = base.dim or overlay.dim,
+        .blink = base.blink or overlay.blink,
+        .inverse = base.inverse or overlay.inverse,
+        .fg = overlay.fg orelse base.fg,
+        .bg = overlay.bg orelse base.bg,
+    };
+}
+
+fn applyAnsiStyle(ctx: *RenderContext, style: StyleAttributes) !void {
+    if (ctx.drawer != null) return;
+    try ctxWrite(ctx, "\x1b[0m");
+    if (style.bold) try ctxWrite(ctx, "\x1b[1m");
+    if (style.dim) try ctxWrite(ctx, "\x1b[2m");
+    if (style.italic) try ctxWrite(ctx, "\x1b[3m");
+    if (style.underline) try ctxWrite(ctx, "\x1b[4m");
+    if (style.blink) try ctxWrite(ctx, "\x1b[5m");
+    if (style.inverse) try ctxWrite(ctx, "\x1b[7m");
+    if (style.strikethrough) try ctxWrite(ctx, "\x1b[9m");
+    if (style.underline_double) try ctxWrite(ctx, "\x1b[21m");
+    if (style.fg) |color| try writeRgb(ctx, color, true);
+    if (style.bg) |color| try writeRgb(ctx, color, false);
+}
+
+fn writeRgb(ctx: *RenderContext, color: u24, is_fg: bool) !void {
+    if (ctx.drawer != null) return;
+    var buf: [32]u8 = undefined;
+    const r = @as(u8, @intCast((color >> 16) & 0xFF));
+    const g = @as(u8, @intCast((color >> 8) & 0xFF));
+    const b = @as(u8, @intCast(color & 0xFF));
+    const prefix: u8 = if (is_fg) 38 else 48;
+    const seq = try std.fmt.bufPrint(&buf, "\x1b[{d};2;{d};{d};{d}m", .{ prefix, r, g, b });
+    try ctxWrite(ctx, seq);
 }
 
 pub const Box = struct {
@@ -164,6 +232,7 @@ pub const Node = union(enum) {
     flexbox: Flexbox,
     dbox: Dbox,
     cursor: Cursor,
+    style: StyleDecorator,
 
     pub fn computeRequirement(self: Node) Requirement {
         return switch (self) {
@@ -259,6 +328,9 @@ pub const Node = union(enum) {
                     .min_width = child_req.min_width + 2,
                     .min_height = child_req.min_height + 2,
                 };
+            },
+            .style => |s| blkStyle: {
+                break :blkStyle s.child.*.computeRequirement();
             },
             else => Requirement{},
         };
@@ -406,6 +478,25 @@ pub const Node = union(enum) {
                 while (i < inner_w) : (i += 1) try ctxWrite(ctx, "\xE2\x94\x80"); // ─
                 try ctxWrite(ctx, "\xE2\x94\x98\n"); // ┘
             },
+            .style => |s| {
+                const prev = ctx.style;
+                const next = mergeStyles(prev, s.attrs);
+                if (!stylesEqual(prev, next) and ctx.drawer == null) {
+                    try applyAnsiStyle(ctx, next);
+                }
+                ctx.style = next;
+                errdefer {
+                    ctx.style = prev;
+                    if (!stylesEqual(prev, next) and ctx.drawer == null) {
+                        applyAnsiStyle(ctx, prev) catch {};
+                    }
+                }
+                try s.child.*.render(ctx);
+                ctx.style = prev;
+                if (!stylesEqual(prev, next) and ctx.drawer == null) {
+                    try applyAnsiStyle(ctx, prev);
+                }
+            },
             .size => |s| {
                 // Size decorator does not change rendering; it only influences requirements.
                 try s.child.*.render(ctx);
@@ -515,6 +606,9 @@ pub const Node = union(enum) {
                     selection.setAccessibility(.container, "Frame", "", selection.value, selection.state);
                 }
             },
+            .style => |s| {
+                s.child.*.select(selection);
+            },
             .size => |s| {
                 s.child.*.select(selection);
             },
@@ -596,6 +690,7 @@ pub const Node = union(enum) {
         return switch (self) {
             .text => |text_node| text_node.content,
             .frame => |f| try f.child.*.getSelectedContent(allocator),
+            .style => |s| try s.child.*.getSelectedContent(allocator),
             .size => |s| try s.child.*.getSelectedContent(allocator),
             .focus => |fx| try fx.child.*.getSelectedContent(allocator),
             .flexbox => |fb| blkSel: {
@@ -791,6 +886,11 @@ pub const Canvas = struct {
 
 pub const Frame = struct {
     child: *const Node,
+};
+
+pub const StyleDecorator = struct {
+    child: *const Node,
+    attrs: StyleAttributes = .{},
 };
 
 pub const Size = struct {
@@ -1121,6 +1221,35 @@ test "canvas render pads missing cells" {
     try std.testing.expectEqualStrings("xo.\nox.\n...\n", managed.items);
 }
 
+test "style decorator emits ansi sequences when rendering" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const alloc = arena.allocator();
+
+    const child_ptr = try alloc.create(Node);
+    child_ptr.* = Node{ .text = .{ .content = "hi" } };
+    const styled = Node{
+        .style = .{ .child = child_ptr, .attrs = .{ .bold = true, .fg = 0x112233 } },
+    };
+
+    var buffer = std.array_list.Managed(u8).init(alloc);
+    defer buffer.deinit();
+    const SinkWriter = struct {
+        fn write(user_data: *anyopaque, data: []const u8) anyerror!void {
+            const buf = @as(*std.array_list.Managed(u8), @ptrCast(@alignCast(user_data)));
+            try buf.appendSlice(data);
+        }
+    };
+
+    var ctx = RenderContext{
+        .sink = .{ .user_data = @as(*anyopaque, @ptrCast(&buffer)), .writeAll = SinkWriter.write },
+    };
+    try styled.render(&ctx);
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "\x1b[1m") != null);
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "\x1b[38;2;17;34;51m") != null);
+    try std.testing.expect(std.mem.endsWith(u8, buffer.items, "\x1b[0m"));
+}
+
 test "frame requirement adds borders" {
     const child = Node{ .text = .{ .content = "hi" } };
     const n = Node{ .frame = .{ .child = &child } };
@@ -1404,12 +1533,18 @@ test "container applyLayout sets owned child boxes" {
 }
 pub const Drawer = struct {
     user_data: *anyopaque,
-    drawText: *const fn (user_data: *anyopaque, x: i32, y: i32, text: []const u8) anyerror!void,
+    drawText: *const fn (
+        user_data: *anyopaque,
+        x: i32,
+        y: i32,
+        text: []const u8,
+        style: StyleAttributes,
+    ) anyerror!void,
 };
 
 fn ctxDraw(ctx: *RenderContext, x: i32, y: i32, text: []const u8) !void {
     if (ctx.drawer) |d| {
-        try d.drawText(d.user_data, x, y, text);
+        try d.drawText(d.user_data, x, y, text, ctx.style);
     } else {
         try ctxWrite(ctx, text);
     }

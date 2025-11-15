@@ -9,10 +9,11 @@ pub fn main() !void {
     defer arena.deinit();
     const a = arena.allocator();
 
-    try stdout.writeAll("=== Zettui Widgets Demo ===\n\n");
+    try renderHeading(&stdout, a, "=== Zettui Widgets Demo ===", .{ .bold = true, .fg = 0xF97316 });
+    try stdout.writeAll("\n");
 
     // Slider examples
-    try stdout.writeAll("--- Slider Widgets ---\n");
+    try renderHeading(&stdout, a, "--- Slider Widgets ---", .{ .fg = 0x22D3EE });
     try stdout.writeAll("Horizontal slider (0-100, step=5):\n");
     const horizontal_slider = try zettui.component.widgets.slider(a, .{
         .min = 0,
@@ -44,7 +45,7 @@ pub fn main() !void {
     try stdout.writeAll("\n\n");
 
     // Radio group examples
-    try stdout.writeAll("--- Radio Group Widgets ---\n");
+    try renderHeading(&stdout, a, "--- Radio Group Widgets ---", .{ .fg = 0xA855F7 });
     try stdout.writeAll("Radio group (3 options, selected=1):\n");
     const labels1 = [_][]const u8{ "Option A", "Option B", "Option C" };
     const radio1 = try zettui.component.widgets.radioGroup(a, .{
@@ -73,7 +74,7 @@ pub fn main() !void {
     try stdout.writeAll("\n\n");
 
     // Interactive demo instructions
-    try stdout.writeAll("--- Interactive Demo Instructions ---\n");
+    try renderHeading(&stdout, a, "--- Interactive Demo Instructions ---", .{ .fg = 0xFCD34D });
     try stdout.writeAll("To test interactivity:\n");
     try stdout.writeAll("  Slider controls:\n");
     try stdout.writeAll("    - Arrow keys (left/right for horizontal, up/down for vertical)\n");
@@ -82,5 +83,20 @@ pub fn main() !void {
     try stdout.writeAll("    - Arrow keys (up/down to navigate)\n");
     try stdout.writeAll("    - Number keys (1-9 to select by index)\n");
     try stdout.writeAll("    - Space/Enter to confirm selection\n");
+    try stdout.writeAll("\n");
+}
+
+fn renderHeading(stdout: *std.fs.File, allocator: std.mem.Allocator, text: []const u8, attrs: zettui.dom.StyleAttributes) !void {
+    const SinkWriter = struct {
+        fn write(user_data: *anyopaque, data: []const u8) anyerror!void {
+            const file = @as(*std.fs.File, @ptrCast(@alignCast(user_data)));
+            try file.writeAll(data);
+        }
+    };
+    var ctx: zettui.dom.RenderContext = .{
+        .sink = .{ .user_data = @as(*anyopaque, @ptrCast(stdout)), .writeAll = SinkWriter.write },
+    };
+    const node = try zettui.dom.elements.styleOwned(allocator, zettui.dom.elements.text(text), attrs);
+    try node.render(&ctx);
     try stdout.writeAll("\n");
 }

@@ -2,6 +2,13 @@ const std = @import("std");
 const image_mod = @import("image.zig");
 
 pub const Pixel = image_mod.Pixel;
+pub const TextStyle = image_mod.TextStyle;
+
+pub const CellStyle = struct {
+    fg: u24 = 0xFFFFFF,
+    bg: u24 = 0x000000,
+    style: TextStyle = .{},
+};
 
 pub const Box = struct {
     x: i32 = 0,
@@ -91,11 +98,19 @@ pub const Screen = struct {
     }
 
     pub fn drawString(self: *Screen, x: usize, y: usize, text: []const u8) void {
+        self.drawStyledString(x, y, text, .{});
+    }
+
+    pub fn drawStyledString(self: *Screen, x: usize, y: usize, text: []const u8, attrs: CellStyle) void {
         const width = self.image.width;
         for (text, 0..) |char_byte, idx| {
             const offset = y * width + x + idx;
             if (offset >= self.image.pixels.len) break;
-            self.image.pixels[offset].glyph = image_mod.glyphFromByte(char_byte);
+            var px = &self.image.pixels[offset];
+            px.glyph = image_mod.glyphFromByte(char_byte);
+            px.fg = attrs.fg;
+            px.bg = attrs.bg;
+            px.style = attrs.style;
         }
     }
 
@@ -104,9 +119,16 @@ pub const Screen = struct {
         while (row < self.image.height) : (row += 1) {
             const start = row * self.image.width;
             const end = start + self.image.width;
+            var current: ?CellStyle = null;
             for (self.image.pixels[start..end]) |pixel| {
+                const cell = CellStyle{ .fg = pixel.fg, .bg = pixel.bg, .style = pixel.style };
+                if (current == null or !cellStylesEqual(current.?, cell)) {
+                    try writeAnsi(writer, cell);
+                    current = cell;
+                }
                 try writer.writeAll(pixel.glyph);
             }
+            try writer.writeAll("\x1b[0m");
             try writer.writeAll("\n");
         }
     }
@@ -175,5 +197,64 @@ test "drawString writes glyphs and present flushes rows" {
     defer buffer.deinit();
     try screen.present(buffer.writer());
 
-    try std.testing.expectEqualStrings(" hi \n    \n", buffer.items);
+    const stripped = try stripAnsi(allocator, buffer.items);
+    defer allocator.free(stripped);
+    try std.testing.expectEqualStrings(" hi \n    \n", stripped);
+}
+
+fn stripAnsi(allocator: std.mem.Allocator, data: []const u8) ![]u8 {
+    var out = std.ArrayListUnmanaged(u8){};
+    defer out.deinit(allocator);
+    try out.ensureTotalCapacity(allocator, data.len);
+    var i: usize = 0;
+    while (i < data.len) {
+        if (data[i] == 0x1b and i + 1 < data.len and data[i + 1] == '[') {
+            i += 2;
+            while (i < data.len and data[i] != 'm') : (i += 1) {}
+            if (i < data.len) i += 1;
+            continue;
+        }
+        try out.append(allocator, data[i]);
+        i += 1;
+    }
+    return try out.toOwnedSlice(allocator);
+}
+
+fn writeAnsi(writer: anytype, style: CellStyle) !void {
+    try writer.writeAll("\x1b[0m");
+    if (style.style.bold) try writer.writeAll("\x1b[1m");
+    if (style.style.dim) try writer.writeAll("\x1b[2m");
+    if (style.style.italic) try writer.writeAll("\x1b[3m");
+    if (style.style.underline) try writer.writeAll("\x1b[4m");
+    if (style.style.blink) try writer.writeAll("\x1b[5m");
+    if (style.style.inverse) try writer.writeAll("\x1b[7m");
+    if (style.style.strikethrough) try writer.writeAll("\x1b[9m");
+    if (style.style.underline_double) try writer.writeAll("\x1b[21m");
+    try writeRgb(writer, style.fg, true);
+    try writeRgb(writer, style.bg, false);
+}
+
+fn writeRgb(writer: anytype, color: u24, is_fg: bool) !void {
+    var buf: [32]u8 = undefined;
+    const r = @as(u8, @intCast((color >> 16) & 0xFF));
+    const g = @as(u8, @intCast((color >> 8) & 0xFF));
+    const b = @as(u8, @intCast(color & 0xFF));
+    const prefix: u8 = if (is_fg) 38 else 48;
+    const seq = try std.fmt.bufPrint(&buf, "\x1b[{d};2;{d};{d};{d}m", .{ prefix, r, g, b });
+    try writer.writeAll(seq);
+}
+
+fn cellStylesEqual(a: CellStyle, b: CellStyle) bool {
+    return a.fg == b.fg and a.bg == b.bg and stylesEqual(a.style, b.style);
+}
+
+fn stylesEqual(a: TextStyle, b: TextStyle) bool {
+    return a.bold == b.bold and
+        a.italic == b.italic and
+        a.underline == b.underline and
+        a.underline_double == b.underline_double and
+        a.strikethrough == b.strikethrough and
+        a.dim == b.dim and
+        a.blink == b.blink and
+        a.inverse == b.inverse;
 }

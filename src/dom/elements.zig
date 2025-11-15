@@ -175,3 +175,21 @@ pub fn cursorOwned(allocator: std.mem.Allocator, child: node.Node, index: usize)
     ptr.* = child;
     return .{ .cursor = .{ .child = ptr, .index = index } };
 }
+
+pub fn stylePtr(child: *const node.Node, attrs: node.StyleAttributes) node.Node {
+    return .{ .style = .{ .child = child, .attrs = attrs } };
+}
+
+pub fn styleOwned(allocator: std.mem.Allocator, child: node.Node, attrs: node.StyleAttributes) !node.Node {
+    const ptr = try allocator.create(node.Node);
+    ptr.* = child;
+    return stylePtr(ptr, attrs);
+}
+
+pub fn styleBoldOwned(allocator: std.mem.Allocator, child: node.Node) !node.Node {
+    return styleOwned(allocator, child, .{ .bold = true });
+}
+
+pub fn styleColorOwned(allocator: std.mem.Allocator, child: node.Node, fg: ?u24, bg: ?u24) !node.Node {
+    return styleOwned(allocator, child, .{ .fg = fg, .bg = bg });
+}

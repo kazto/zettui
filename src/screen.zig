@@ -8,6 +8,8 @@ pub const Image = image.Image;
 pub const Screen = surface.Screen;
 pub const Pixel = surface.Pixel;
 pub const Box = surface.Box;
+pub const TextStyle = surface.TextStyle;
+pub const CellStyle = surface.CellStyle;
 
 pub const Color = color.Color;
 pub const ColorInfo = color.ColorInfo;

@@ -9,11 +9,11 @@ pub fn main() !void {
     defer arena.deinit();
     const a = arena.allocator();
 
-    try stdout.writeAll("=== Interactive Widgets Demo ===\n");
+    try renderHeading(&stdout, a, "=== Interactive Widgets Demo ===", .{ .bold = true, .fg = 0x22D3EE });
     try stdout.writeAll("Controls:\n");
-    try stdout.writeAll("  Slider: Arrow keys or +/- to adjust\n");
-    try stdout.writeAll("  Radio: Arrow keys or number keys (1-3) to select\n");
-    try stdout.writeAll("  Press 'q' to quit\n\n");
+    try renderHighlighted(&stdout, a, "  Slider: Arrow keys or +/- to adjust\n", 0x34D399);
+    try renderHighlighted(&stdout, a, "  Radio: Arrow keys or number keys (1-3) to select\n", 0xA855F7);
+    try renderHighlighted(&stdout, a, "  Press 'q' to quit\n\n", 0xF97316);
 
     // Create widgets
     const slider = try zettui.component.widgets.slider(a, .{
@@ -48,7 +48,7 @@ pub fn main() !void {
     const radio_state = @as(*RadioGroupState, @ptrCast(@alignCast(radio.base.user_data.?)));
 
     // Display current state
-    try stdout.writeAll("--- Current State ---\n");
+    try renderHeading(&stdout, a, "--- Current State ---", .{ .fg = 0xFCD34D });
     const slider_value_buf = try std.fmt.allocPrint(a, "{d:.1}", .{slider_state.value});
     try stdout.writeAll("Slider value: ");
     try stdout.writeAll(slider_value_buf);
@@ -63,7 +63,8 @@ pub fn main() !void {
     try stdout.writeAll("\n");
 
     // Demonstrate event handling with some example events
-    try stdout.writeAll("\n--- Simulating Events ---\n");
+    try stdout.writeAll("\n");
+    try renderHeading(&stdout, a, "--- Simulating Events ---", .{ .fg = 0xF472B6 });
     try stdout.writeAll("Sending arrow right to slider...\n");
     _ = slider.onEvent(.{ .key = .{ .arrow_key = .right } });
     const new_slider_value = try std.fmt.allocPrint(a, "{d:.1}", .{slider_state.value});
@@ -100,4 +101,33 @@ pub fn main() !void {
 
     try stdout.writeAll("\nNote: For full interactive control, integrate with a terminal input library.\n");
     try stdout.writeAll("The widgets are ready to receive events via the onEvent() method.\n");
+}
+
+fn renderHeading(stdout: *std.fs.File, allocator: std.mem.Allocator, text: []const u8, attrs: zettui.dom.StyleAttributes) !void {
+    const SinkWriter = struct {
+        fn write(user_data: *anyopaque, data: []const u8) anyerror!void {
+            const file = @as(*std.fs.File, @ptrCast(@alignCast(user_data)));
+            try file.writeAll(data);
+        }
+    };
+    var ctx: zettui.dom.RenderContext = .{
+        .sink = .{ .user_data = @as(*anyopaque, @ptrCast(stdout)), .writeAll = SinkWriter.write },
+    };
+    const node = try zettui.dom.elements.styleOwned(allocator, zettui.dom.elements.text(text), attrs);
+    try node.render(&ctx);
+    try stdout.writeAll("\n");
+}
+
+fn renderHighlighted(stdout: *std.fs.File, allocator: std.mem.Allocator, text: []const u8, color: u24) !void {
+    const SinkWriter = struct {
+        fn write(user_data: *anyopaque, data: []const u8) anyerror!void {
+            const file = @as(*std.fs.File, @ptrCast(@alignCast(user_data)));
+            try file.writeAll(data);
+        }
+    };
+    var ctx: zettui.dom.RenderContext = .{
+        .sink = .{ .user_data = @as(*anyopaque, @ptrCast(stdout)), .writeAll = SinkWriter.write },
+    };
+    const node = try zettui.dom.elements.styleOwned(allocator, zettui.dom.elements.text(text), .{ .fg = color });
+    try node.render(&ctx);
 }

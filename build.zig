@@ -100,6 +100,38 @@ pub fn build(b: *std.Build) void {
     const run_widgets_interactive_step = b.step("run:widgets-interactive", "Run the interactive widgets demo");
     run_widgets_interactive_step.dependOn(&run_widgets_interactive.step);
 
+    // Style + color gallery demo
+    const style_gallery_module = b.createModule(.{
+        .root_source_file = b.path("examples/style_gallery.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "zettui", .module = zettui_module }},
+    });
+    const style_gallery_exe = b.addExecutable(.{
+        .name = "zettui-style-gallery",
+        .root_module = style_gallery_module,
+    });
+    b.installArtifact(style_gallery_exe);
+    const run_style_gallery = b.addRunArtifact(style_gallery_exe);
+    const run_style_gallery_step = b.step("run:style-gallery", "Run the DOM style/color gallery demo");
+    run_style_gallery_step.dependOn(&run_style_gallery.step);
+
+    // Interaction demo (keyboard/mouse simulation)
+    const interaction_module = b.createModule(.{
+        .root_source_file = b.path("examples/interaction_demo.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "zettui", .module = zettui_module }},
+    });
+    const interaction_exe = b.addExecutable(.{
+        .name = "zettui-interaction",
+        .root_module = interaction_module,
+    });
+    b.installArtifact(interaction_exe);
+    const run_interaction = b.addRunArtifact(interaction_exe);
+    const run_interaction_step = b.step("run:interaction", "Run the keyboard + mouse interaction demo");
+    run_interaction_step.dependOn(&run_interaction.step);
+
     const tests_module = b.createModule(.{
         .root_source_file = b.path("src/lib.zig"),
         .target = target,

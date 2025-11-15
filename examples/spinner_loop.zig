@@ -3,10 +3,19 @@ const zettui = @import("zettui");
 
 pub fn main() !void {
     var ctx: zettui.dom.RenderContext = .{};
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
     var n = zettui.dom.elements.spinner();
 
     var stdout_file = std.fs.File.stdout();
-    try stdout_file.writeAll("Spinner animation (press Ctrl+C to quit)\n");
+    const heading = try zettui.dom.elements.styleOwned(
+        a,
+        zettui.dom.elements.text("Spinner animation (press Ctrl+C to quit)"),
+        .{ .bold = true, .fg = 0xF97316 },
+    );
+    try heading.render(&ctx);
+    try stdout_file.writeAll("\n");
 
     var i: usize = 0;
     while (i < 40) : (i += 1) {
