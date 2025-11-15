@@ -177,6 +177,50 @@ fn resolveColor(explicit: ?u24, palette: ?PaletteColor, default_color: u24) u24 
     return default_color;
 }
 
+const FrameCharset = struct {
+    top_left: []const u8,
+    top_right: []const u8,
+    bottom_left: []const u8,
+    bottom_right: []const u8,
+    horizontal: []const u8,
+    vertical: []const u8,
+};
+
+fn frameCharset(style: FrameBorderStyle) FrameCharset {
+    return switch (style) {
+        .single => .{
+            .top_left = "\xE2\x94\x8C",
+            .top_right = "\xE2\x94\x90",
+            .bottom_left = "\xE2\x94\x94",
+            .bottom_right = "\xE2\x94\x98",
+            .horizontal = "\xE2\x94\x80",
+            .vertical = "\xE2\x94\x82",
+        },
+        .double => .{
+            .top_left = "\xE2\x95\x94",
+            .top_right = "\xE2\x95\x97",
+            .bottom_left = "\xE2\x95\x9A",
+            .bottom_right = "\xE2\x95\x9D",
+            .horizontal = "\xE2\x95\x90",
+            .vertical = "\xE2\x95\x91",
+        },
+    };
+}
+
+fn blendColor(start: u24, end: u24, t: f32) u24 {
+    const clamped = std.math.clamp(t, 0.0, 1.0);
+    const sr = (start >> 16) & 0xFF;
+    const sg = (start >> 8) & 0xFF;
+    const sb = start & 0xFF;
+    const er = (end >> 16) & 0xFF;
+    const eg = (end >> 8) & 0xFF;
+    const eb = end & 0xFF;
+    const r = @as(u8, @intFromFloat(@as(f32, @floatFromInt(sr)) * (1.0 - clamped) + @as(f32, @floatFromInt(er)) * clamped));
+    const g = @as(u8, @intFromFloat(@as(f32, @floatFromInt(sg)) * (1.0 - clamped) + @as(f32, @floatFromInt(eg)) * clamped));
+    const b = @as(u8, @intFromFloat(@as(f32, @floatFromInt(sb)) * (1.0 - clamped) + @as(f32, @floatFromInt(eb)) * clamped));
+    return (@as(u24, r) << 16) | (@as(u24, g) << 8) | b;
+}
+
 pub const RenderContext = struct {
     allow_hyperlinks: bool = false,
     sink: ?Sink = null,
@@ -279,6 +323,7 @@ pub const Node = union(enum) {
     paragraph: Paragraph,
     graph: Graph,
     canvas: Canvas,
+    gradient_text: GradientText,
     frame: Frame,
     size: Size,
     filler: Filler,
@@ -316,6 +361,10 @@ pub const Node = union(enum) {
                     .min_width = dims.width,
                     .min_height = dims.height,
                 };
+            },
+            .gradient_text => |g| Requirement{
+                .min_width = g.text.len,
+                .min_height = if (g.text.len == 0) 0 else 1,
             },
             .size => |s| blkSize: {
                 const child_req = s.child.*.computeRequirement();
@@ -484,15 +533,25 @@ pub const Node = union(enum) {
             },
             .graph => |g| try g.render(ctx),
             .canvas => |c| try c.render(ctx),
+            .gradient_text => |g| try g.render(ctx),
             .custom => |renderer| try @call(.auto, renderer.callback, .{ renderer.user_data, ctx }),
             .frame => |f| {
                 const req = f.child.*.computeRequirement();
                 const inner_w: usize = req.min_width;
-                // top border: ┌───┐
-                try ctxWrite(ctx, "\xE2\x94\x8C"); // ┌
-                var i: usize = 0;
-                while (i < inner_w) : (i += 1) try ctxWrite(ctx, "\xE2\x94\x80"); // ─
-                try ctxWrite(ctx, "\xE2\x94\x90\n"); // ┐
+                const border = frameCharset(f.border.charset);
+                const top_left = border.top_left;
+                const top_right = border.top_right;
+                const horizontal = border.horizontal;
+                const vertical = border.vertical;
+                const bottom_left = border.bottom_left;
+                const bottom_right = border.bottom_right;
+                const saved = ctx.style;
+                ctx.style = mergeStyles(ctx.style, .{ .fg = f.border.fg, .fg_palette = f.border.fg_palette });
+                try frameWrite(ctx, ctx.origin_x, ctx.origin_y, top_left);
+                var h: usize = 0;
+                while (h < inner_w) : (h += 1) try frameWrite(ctx, ctx.origin_x + @as(i32, @intCast(h + 1)), ctx.origin_y, horizontal);
+                try frameWrite(ctx, ctx.origin_x + @as(i32, @intCast(inner_w + 1)), ctx.origin_y, top_right);
+                if (ctx.drawer == null) try ctxWrite(ctx, "\n");
 
                 // middle rows: wrap known multi-line children with borders per line
                 switch (f.child.*) {
@@ -500,37 +559,53 @@ pub const Node = union(enum) {
                         const w: usize = if (p.width == 0) 1 else p.width;
                         var idx: usize = 0;
                         while (idx < p.content.len) {
-                            try ctxWrite(ctx, "\xE2\x94\x82"); // │
+                            try frameWrite(ctx, ctx.origin_x, ctx.origin_y + 1 + @as(i32, @intCast(idx / w)), vertical);
                             const rem = p.content.len - idx;
                             const take = if (rem < w) rem else w;
-                            try ctxWrite(ctx, p.content[idx .. idx + take]);
+                            if (ctx.drawer != null) {
+                                var col: usize = 0;
+                                while (col < take) : (col += 1) try frameWrite(ctx, ctx.origin_x + 1 + @as(i32, @intCast(col)), ctx.origin_y + 1 + @as(i32, @intCast(idx / w)), p.content[idx + col .. idx + col + 1]);
+                            } else {
+                                try ctxWrite(ctx, p.content[idx .. idx + take]);
+                            }
                             var pad: usize = inner_w - take;
                             while (pad > 0) : (pad -= 1) try ctxWrite(ctx, " ");
-                            try ctxWrite(ctx, "\xE2\x94\x82\n"); // │
+                            try frameWrite(ctx, ctx.origin_x + @as(i32, @intCast(inner_w + 1)), ctx.origin_y + 1 + @as(i32, @intCast(idx / w)), vertical);
+                            if (ctx.drawer == null) try ctxWrite(ctx, "\n");
                             idx += take;
                         }
                         if (p.content.len == 0) {
                             // empty content still renders one empty line inside the frame
-                            try ctxWrite(ctx, "\xE2\x94\x82");
+                            try frameWrite(ctx, ctx.origin_x, ctx.origin_y + 1, vertical);
                             var j: usize = 0;
                             while (j < inner_w) : (j += 1) try ctxWrite(ctx, " ");
-                            try ctxWrite(ctx, "\xE2\x94\x82\n");
+                            try frameWrite(ctx, ctx.origin_x + @as(i32, @intCast(inner_w + 1)), ctx.origin_y + 1, vertical);
+                            if (ctx.drawer == null) try ctxWrite(ctx, "\n");
                         }
                     },
                     else => {
                         // default: single row with child rendering
-                        try ctxWrite(ctx, "\xE2\x94\x82"); // │
-                        try f.child.*.render(ctx);
+                        try frameWrite(ctx, ctx.origin_x, ctx.origin_y + 1, vertical);
+                        var child_ctx = ctx.*;
+                        child_ctx.origin_x += 1;
+                        child_ctx.origin_y += 1;
+                        try f.child.*.render(&child_ctx);
                         // pad to inner width is not attempted here; assume child fits
-                        try ctxWrite(ctx, "\xE2\x94\x82\n"); // │
+                        try frameWrite(ctx, ctx.origin_x + @as(i32, @intCast(inner_w + 1)), ctx.origin_y + 1, vertical);
+                        if (ctx.drawer == null) try ctxWrite(ctx, "\n");
                     },
                 }
 
                 // bottom border: └───┘
-                try ctxWrite(ctx, "\xE2\x94\x94"); // └
-                i = 0;
-                while (i < inner_w) : (i += 1) try ctxWrite(ctx, "\xE2\x94\x80"); // ─
-                try ctxWrite(ctx, "\xE2\x94\x98\n"); // ┘
+                try frameWrite(ctx, ctx.origin_x, ctx.origin_y + 1 + @as(i32, @intCast(req.min_height)), bottom_left);
+                var bottom_col: usize = 0;
+                while (bottom_col < inner_w) : (bottom_col += 1) try frameWrite(ctx, ctx.origin_x + 1 + @as(i32, @intCast(bottom_col)), ctx.origin_y + 1 + @as(i32, @intCast(req.min_height)), horizontal);
+                try frameWrite(ctx, ctx.origin_x + @as(i32, @intCast(inner_w + 1)), ctx.origin_y + 1 + @as(i32, @intCast(req.min_height)), bottom_right);
+                if (ctx.drawer == null) try ctxWrite(ctx, "\n");
+                ctx.style = saved;
+                if (ctx.drawer == null) {
+                    try applyAnsiStyle(ctx, saved);
+                }
             },
             .style => |s| {
                 const prev = ctx.style;
@@ -660,6 +735,10 @@ pub const Node = union(enum) {
                     selection.setAccessibility(.container, "Frame", "", selection.value, selection.state);
                 }
             },
+            .gradient_text => |g| {
+                selection.setAccessibility(.text, "Gradient Text", "", g.text, "");
+                selection.setCursor(0, 0);
+            },
             .style => |s| {
                 s.child.*.select(selection);
             },
@@ -744,6 +823,7 @@ pub const Node = union(enum) {
         return switch (self) {
             .text => |text_node| text_node.content,
             .frame => |f| try f.child.*.getSelectedContent(allocator),
+            .gradient_text => |g| try allocator.dupe(u8, g.text),
             .style => |s| try s.child.*.getSelectedContent(allocator),
             .size => |s| try s.child.*.getSelectedContent(allocator),
             .focus => |fx| try fx.child.*.getSelectedContent(allocator),
@@ -891,6 +971,35 @@ pub const Graph = struct {
     }
 };
 
+pub const GradientText = struct {
+    text: []const u8,
+    start_color: u24,
+    end_color: u24,
+
+    fn render(self: GradientText, ctx: *RenderContext) !void {
+        if (self.text.len == 0) return;
+        const saved = ctx.style;
+        const total = self.text.len;
+        var idx: usize = 0;
+        while (idx < total) : (idx += 1) {
+            const ratio = if (total <= 1) 0 else @as(f32, @floatFromInt(idx)) / @as(f32, @floatFromInt(total - 1));
+            const blended = blendColor(self.start_color, self.end_color, ratio);
+            const next_style = mergeStyles(saved, .{ .fg = blended });
+            ctx.style = next_style;
+            if (ctx.drawer != null) {
+                try ctxDraw(ctx, ctx.origin_x + @as(i32, @intCast(idx)), ctx.origin_y, self.text[idx .. idx + 1]);
+            } else {
+                try applyAnsiStyle(ctx, next_style);
+                try ctxWrite(ctx, self.text[idx .. idx + 1]);
+            }
+        }
+        ctx.style = saved;
+        if (ctx.drawer == null) {
+            try applyAnsiStyle(ctx, saved);
+        }
+    }
+};
+
 pub const Canvas = struct {
     rows: []const []const u8 = &[_][]const u8{},
     width: usize = 0,
@@ -938,8 +1047,17 @@ pub const Canvas = struct {
     }
 };
 
+pub const FrameBorderStyle = enum { single, double };
+
+pub const FrameBorder = struct {
+    charset: FrameBorderStyle = .single,
+    fg: ?u24 = null,
+    fg_palette: ?PaletteColor = null,
+};
+
 pub const Frame = struct {
     child: *const Node,
+    border: FrameBorder = .{},
 };
 
 pub const StyleDecorator = struct {
@@ -1246,6 +1364,44 @@ test "graph render outputs ascii sparkline" {
     try std.testing.expectEqualStrings("..#\n.##\n", managed.items);
 }
 
+test "gradient text requirement uses length" {
+    const node = Node{ .gradient_text = .{
+        .text = "grad",
+        .start_color = 0x000000,
+        .end_color = 0xFFFFFF,
+    } };
+    const req = node.computeRequirement();
+    try std.testing.expectEqual(@as(usize, 4), req.min_width);
+    try std.testing.expectEqual(@as(usize, 1), req.min_height);
+}
+
+test "gradient text render emits ansi color ramp" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const alloc = arena.allocator();
+
+    const node = Node{ .gradient_text = .{
+        .text = "ab",
+        .start_color = 0xFF0000,
+        .end_color = 0x0000FF,
+    } };
+
+    var buffer = std.array_list.Managed(u8).init(alloc);
+    defer buffer.deinit();
+    const SinkWriter = struct {
+        fn write(user_data: *anyopaque, data: []const u8) anyerror!void {
+            const buf = @as(*std.array_list.Managed(u8), @ptrCast(@alignCast(user_data)));
+            try buf.appendSlice(data);
+        }
+    };
+    var ctx = RenderContext{
+        .sink = .{ .user_data = @as(*anyopaque, @ptrCast(&buffer)), .writeAll = SinkWriter.write },
+    };
+    try node.render(&ctx);
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "\x1b[38;2;255;0;0m") != null);
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "\x1b[38;2;0;0;255m") != null);
+}
+
 test "canvas requirement tracks widest row" {
     const node = Node{ .canvas = .{ .rows = &[_][]const u8{ "x", "wide" } } };
     const req = node.computeRequirement();
@@ -1360,8 +1516,28 @@ test "frame renders paragraph with per-line borders and padding" {
         "\xE2\x94\x8C\xE2\x94\x80\xE2\x94\x80\xE2\x94\x80\xE2\x94\x80\xE2\x94\x90\n" ++
         "\xE2\x94\x82hell\xE2\x94\x82\n" ++
         "\xE2\x94\x82o   \xE2\x94\x82\n" ++
-        "\xE2\x94\x94\xE2\x94\x80\xE2\x94\x80\xE2\x94\x80\xE2\x94\x80\xE2\x94\x98\n";
+        "\xE2\x94\x94\xE2\x94\x80\xE2\x94\x80\xE2\x94\x80\xE2\x94\x80\xE2\x94\x98\n" ++
+        "\x1b[0m";
     try std.testing.expectEqualStrings(expected, managed.items);
+}
+
+test "frame supports double border charset" {
+    var managed = std.array_list.Managed(u8).init(std.testing.allocator);
+    defer managed.deinit();
+    const Adapter = struct {
+        fn write(user_data: *anyopaque, data: []const u8) anyerror!void {
+            const buf = @as(*std.array_list.Managed(u8), @ptrCast(@alignCast(user_data)));
+            try buf.appendSlice(data);
+        }
+    };
+    var ctx: RenderContext = .{
+        .sink = .{ .user_data = @as(*anyopaque, @ptrCast(&managed)), .writeAll = Adapter.write },
+    };
+
+    const child = Node{ .text = .{ .content = "x" } };
+    const node = Node{ .frame = .{ .child = &child, .border = .{ .charset = .double } } };
+    try node.render(&ctx);
+    try std.testing.expect(std.mem.indexOf(u8, managed.items, "\xE2\x95\x94") != null); // double top-left
 }
 
 test "size requirement is at least given dims" {
@@ -1626,6 +1802,13 @@ pub const Drawer = struct {
 fn ctxDraw(ctx: *RenderContext, x: i32, y: i32, text: []const u8) !void {
     if (ctx.drawer) |d| {
         try d.drawText(d.user_data, x, y, text, ctx.style);
+    } else {
+        try ctxWrite(ctx, text);
+    }
+}
+fn frameWrite(ctx: *RenderContext, x: i32, y: i32, text: []const u8) !void {
+    if (ctx.drawer != null) {
+        try ctxDraw(ctx, x, y, text);
     } else {
         try ctxWrite(ctx, text);
     }

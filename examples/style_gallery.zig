@@ -87,4 +87,26 @@ fn renderColors(ctx: *zettui.dom.RenderContext, stdout: *std.fs.File, allocator:
         try node.render(ctx);
         try stdout.writeAll("\n");
     }
+
+    try stdout.writeAll("Gradient sample:\n");
+    const gradient = zettui.dom.elements.linearGradient("Gradient across text", 0xF97316, 0x7C3AED);
+    try gradient.render(ctx);
+    try stdout.writeAll("\n");
+
+    try stdout.writeAll("\nBorder styles:\n");
+    const framed_single = try zettui.dom.elements.frameStyledOwned(
+        allocator,
+        zettui.dom.elements.text("Single border (palette cyan)"),
+        .{ .fg_palette = .bright_cyan },
+    );
+    var border_ctx: zettui.dom.RenderContext = .{};
+    try framed_single.render(&border_ctx);
+    try stdout.writeAll("\n");
+
+    const framed_double = try zettui.dom.elements.frameStyledOwned(
+        allocator,
+        zettui.dom.elements.text("Double border (magenta)"),
+        .{ .charset = .double, .fg = 0xF472B6 },
+    );
+    try framed_double.render(&border_ctx);
 }

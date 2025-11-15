@@ -80,13 +80,23 @@ pub fn canvasSized(rows: []const []const u8, width: usize, height: usize) node.N
 }
 
 pub fn framePtr(child: *const node.Node) node.Node {
-    return .{ .frame = .{ .child = child } };
+    return frameStyledPtr(child, .{});
 }
 
 pub fn frameOwned(allocator: std.mem.Allocator, child: node.Node) !node.Node {
     const ptr = try allocator.create(node.Node);
     ptr.* = child;
-    return .{ .frame = .{ .child = ptr } };
+    return frameStyledPtr(ptr, .{});
+}
+
+pub fn frameStyledPtr(child: *const node.Node, style: node.FrameBorder) node.Node {
+    return .{ .frame = .{ .child = child, .border = style } };
+}
+
+pub fn frameStyledOwned(allocator: std.mem.Allocator, child: node.Node, style: node.FrameBorder) !node.Node {
+    const ptr = try allocator.create(node.Node);
+    ptr.* = child;
+    return frameStyledPtr(ptr, style);
 }
 
 test "frameOwned wraps child and sets requirement" {
@@ -202,4 +212,12 @@ pub fn stylePaletteOwned(allocator: std.mem.Allocator, child: node.Node, fg: ?no
     const ptr = try allocator.create(node.Node);
     ptr.* = child;
     return stylePalettePtr(ptr, fg, bg);
+}
+
+pub fn linearGradient(content: []const u8, start_color: u24, end_color: u24) node.Node {
+    return .{ .gradient_text = .{
+        .text = content,
+        .start_color = start_color,
+        .end_color = end_color,
+    } };
 }
