@@ -342,7 +342,13 @@ pub const Node = union(enum) {
             },
             .separator => Requirement{ .min_width = 1, .min_height = 1 },
             .window => |w| Requirement{ .min_width = 2 + w.title.len, .min_height = 1 },
-            .gauge => |g| Requirement{ .min_width = @max(@as(usize, 3), g.width), .min_height = 1 },
+            .gauge => |g| blkGauge: {
+                const extent = @max(@as(usize, 3), g.width);
+                break :blkGauge switch (g.orientation) {
+                    .horizontal => Requirement{ .min_width = extent, .min_height = 1 },
+                    .vertical => Requirement{ .min_width = 3, .min_height = extent },
+                };
+            },
             .spinner => |s| Requirement{ .min_width = s.currentFrame().len, .min_height = 1 },
             .paragraph => |p| blk: {
                 const w: usize = if (p.width == 0) 1 else p.width;
@@ -484,28 +490,66 @@ pub const Node = union(enum) {
                 }
             },
             .gauge => |g| {
-                const total = if (g.width < 3) 3 else g.width;
-                const inner: usize = total - 2;
+                const extent = @max(@as(usize, 3), g.width);
+                const inner: usize = extent - 2;
                 const clamped = std.math.clamp(g.fraction, 0.0, 1.0);
-                const filled: usize = @intFromFloat(@floor(@as(f32, @floatFromInt(inner)) * clamped + 0.0001));
-                const empty: usize = inner - filled;
-                if (ctx.drawer != null) {
-                    var buf = std.array_list.Managed(u8).init(std.heap.page_allocator);
-                    defer buf.deinit();
-                    try buf.appendSlice("[");
-                    var i: usize = 0;
-                    while (i < filled) : (i += 1) try buf.append('#');
-                    i = 0;
-                    while (i < empty) : (i += 1) try buf.append('.');
-                    try buf.appendSlice("]");
-                    try ctxDraw(ctx, ctx.origin_x, ctx.origin_y, buf.items);
-                } else {
-                    try ctxWrite(ctx, "[");
-                    var i: usize = 0;
-                    while (i < filled) : (i += 1) try ctxWrite(ctx, "#");
-                    i = 0;
-                    while (i < empty) : (i += 1) try ctxWrite(ctx, ".");
-                    try ctxWrite(ctx, "]");
+                const filled_inner: usize = @intFromFloat(@floor(@as(f32, @floatFromInt(inner)) * clamped + 0.0001));
+                const empty_inner: usize = inner - filled_inner;
+                switch (g.orientation) {
+                    .horizontal => {
+                        if (ctx.drawer != null) {
+                            var buf = std.array_list.Managed(u8).init(std.heap.page_allocator);
+                            defer buf.deinit();
+                            try buf.appendSlice("[");
+                            var i: usize = 0;
+                            while (i < filled_inner) : (i += 1) try buf.append('#');
+                            i = 0;
+                            while (i < empty_inner) : (i += 1) try buf.append('.');
+                            try buf.appendSlice("]");
+                            try ctxDraw(ctx, ctx.origin_x, ctx.origin_y, buf.items);
+                        } else {
+                            try ctxWrite(ctx, "[");
+                            var i: usize = 0;
+                            while (i < filled_inner) : (i += 1) try ctxWrite(ctx, "#");
+                            i = 0;
+                            while (i < empty_inner) : (i += 1) try ctxWrite(ctx, ".");
+                            try ctxWrite(ctx, "]");
+                        }
+                    },
+                    .vertical => {
+                        const total_rows = extent;
+                        if (ctx.drawer != null) {
+                            var row: usize = 0;
+                            while (row < total_rows) : (row += 1) {
+                                const ch: u8 = if (row == 0 or row == total_rows - 1)
+                                    ' '
+                                else if ((row - 1) < empty_inner)
+                                    '.'
+                                else
+                                    '#';
+                                const line = [3]u8{ '[', ch, ']' };
+                                try ctxDraw(
+                                    ctx,
+                                    ctx.origin_x,
+                                    ctx.origin_y + @as(i32, @intCast(row)),
+                                    line[0..],
+                                );
+                            }
+                        } else {
+                            var row: usize = 0;
+                            while (row < total_rows) : (row += 1) {
+                                const ch: u8 = if (row == 0 or row == total_rows - 1)
+                                    ' '
+                                else if ((row - 1) < empty_inner)
+                                    '.'
+                                else
+                                    '#';
+                                const line = [3]u8{ '[', ch, ']' };
+                                try ctxWrite(ctx, line[0..]);
+                                if (row + 1 < total_rows) try ctxWrite(ctx, "\n");
+                            }
+                        }
+                    },
                 }
             },
             .spinner => |s| {
@@ -876,6 +920,7 @@ pub const WindowFrame = struct {
 pub const Gauge = struct {
     fraction: f32 = 0.0,
     width: usize = 10,
+    orientation: Orientation = .horizontal,
 };
 
 pub const Spinner = struct {
@@ -1091,7 +1136,7 @@ pub const GridBox = struct {
     pub fn render(self: GridBox, ctx: *RenderContext) !void {
         var y_offset: i32 = ctx.origin_y;
         for (self.cells) |row| {
-            var row_widths = std.ArrayList(usize).init(std.heap.page_allocator);
+            var row_widths = std.array_list.Managed(usize).init(std.heap.page_allocator);
             defer row_widths.deinit();
             var max_height: usize = 0;
             for (row) |cell| {
@@ -1368,6 +1413,13 @@ test "gauge default width is 10" {
     const req = g.computeRequirement();
     try std.testing.expectEqual(@as(usize, 10), req.min_width);
     try std.testing.expectEqual(@as(usize, 1), req.min_height);
+}
+
+test "vertical gauge requirement swaps width/height expectations" {
+    const g = Node{ .gauge = .{ .fraction = 0.25, .width = 6, .orientation = .vertical } };
+    const req = g.computeRequirement();
+    try std.testing.expectEqual(@as(usize, 3), req.min_width);
+    try std.testing.expectEqual(@as(usize, 6), req.min_height);
 }
 
 test "spinner width equals current frame length" {
@@ -1878,19 +1930,3 @@ fn frameWrite(ctx: *RenderContext, x: i32, y: i32, text: []const u8) !void {
         try ctxWrite(ctx, text);
     }
 }
-pub const GridBox = struct {
-    cells: [][]const Node = &[_][]const Node{},
-    column_gap: usize = 1,
-    row_gap: usize = 0,
-    owned_cells: ?[][]Node = null,
-
-    pub fn initOwned(allocator: std.mem.Allocator, rows: [][]const Node) !GridBox {
-        const copied_rows = try allocator.alloc([]Node, rows.len);
-        for (rows, 0..) |row, i| {
-            copied_rows[i] = try allocator.dupe(Node, row);
-        }
-        return .{
-            .cells = rows,
-            .owned_cells = copied_rows,
-        };
-    }

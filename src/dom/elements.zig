@@ -45,6 +45,14 @@ pub fn gaugeWidth(fraction: f32, width: usize) node.Node {
     return .{ .gauge = .{ .fraction = fraction, .width = width } };
 }
 
+pub fn gaugeVertical(fraction: f32) node.Node {
+    return .{ .gauge = .{ .fraction = fraction, .width = 10, .orientation = .vertical } };
+}
+
+pub fn gaugeVerticalHeight(fraction: f32, height: usize) node.Node {
+    return .{ .gauge = .{ .fraction = fraction, .width = height, .orientation = .vertical } };
+}
+
 pub fn spinner() node.Node {
     return .{ .spinner = .{} };
 }

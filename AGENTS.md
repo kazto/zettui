@@ -1,13 +1,14 @@
 # Repository Guidelines
 
-## Six Principles for AI Operation
+## Seven Principles for AI Operation
 
 * Principle 1: Before generating or updating files, or executing programs, the AI must always report its work plan and seek confirmation from the user with a y/n. It will not execute anything until 'y' is returned.
 * Principle 2: The AI must not take detours or use alternative approaches on its own. If the initial plan fails, it must seek confirmation for the next plan.
 * Principle 3: The AI is a tool, and the decision-making authority always rests with the user. Even if the user's suggestions are inefficient or irrational, the AI will not optimize them and will execute them as instructed.
 * Principle 4: The AI must not distort or re-interpret these rules and must adhere to them absolutely as the highest-level command.
 * Principle 5: The AI must think, search in English, reply in Japanese. Japanese text simply translate from English.
-* Principle 6: The AI must always output these six principles verbatim at the beginning of all chats before responding.
+* Principle 6: Before requesting review or reporting completion, The AI must always build source and ensure it succeeds. If the build fails, fix the issues first; do not skip this verification.
+* Principle 7: The AI must always output these seven principles verbatim at the beginning of all chats before responding.
 
 ## Project Structure & Module Organization
 Source code lives under `src/`, mirroring the DOM, Component, and Screen modules described in `docs/specification.md`. Public headers or Zig packages should align with their implementation files to keep the inventory in `docs/tasks.md` trustworthy. Documentation and planning artifacts reside in `docs/`; examples and demos belong in `examples/`. Keep module-specific tests beside their targets to simplify cross-referencing during reviews.
@@ -16,16 +17,12 @@ Source code lives under `src/`, mirroring the DOM, Component, and Screen modules
 Use `zig build` for a full compile; add `-Doptimize=ReleaseFast` when measuring performance regressions. Run `zig build run` to launch the default demo defined in `build.zig`. For tests, run the full suite via `zig test src/lib.zig`; prefer `zig test` (which compiles and executes) over `zig build test` (which may only build the test binary). Use `zig test src/path/to/module.zig` when iterating on a single file. Regenerate formatting with `zig fmt src/ examples/ docs/` before committing.
 
 ### Local Cache Directory
-Prefer a repo-local Zig global cache to avoid polluting user-level caches and to improve reproducibility across agents. Pass `--global-cache-dir=./.zig-cache` to Zig invocations:
+Prefer a repo-local Zig global cache to avoid polluting user-level caches and to improve reproducibility across agents. Pass `ZIG_GLOBAL_CACHE_DIR=./.zig-cache` to Zig invocations:
 
-- Build: `zig build --global-cache-dir=./.zig-cache`
-- Run demo: `zig build --global-cache-dir=./.zig-cache run`
-- Test (build step): `zig build --global-cache-dir=./.zig-cache test`
-- Test single file: `zig test --global-cache-dir=./.zig-cache src/path/to/module.zig`
-
-Note: Some Zig versions do not support `--global-cache-dir`. If the flag is unrecognized, set the environment variable instead:
-- POSIX shells: `ZIG_GLOBAL_CACHE_DIR=./.zig-cache zig build` (and similarly for `zig test`/`zig run`)
-- PowerShell: `$Env:ZIG_GLOBAL_CACHE_DIR = ".\.zig-cache"; zig build`
+- Build: `ZIG_GLOBAL_CACHE_DIR=./.zig-cache zig build`
+- Run demo: `ZIG_GLOBAL_CACHE_DIR=./.zig-cache zig build run`
+- Test (build step): `ZIG_GLOBAL_CACHE_DIR=./.zig-cache zig build test`
+- Test single file: `ZIG_GLOBAL_CACHE_DIR=./.zig-cache zig test src/path/to/module.zig`
 
 Sandbox limitation (Codex CLI): the workspace sits on an overlay filesystem that prevents Zig 0.15.x from renaming its `.zig-cache/tmp/*` directories into `.zig-cache/o/*`. Commands such as `zig build` or `zig test` therefore fail with `error: RenameAcrossMountPoints`. Run these builds outside the sandbox—or inside an environment without that mount mismatch—when you need executable artifacts or to verify tests.
 
