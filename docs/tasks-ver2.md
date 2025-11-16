@@ -14,16 +14,16 @@ Zettui と FTXUI の例を比較して不足している機能を分類したチ
 - [x] DOM 中での color gallery / style gallery を再現する API
 
 ## Components
-- [ ] button のスタイル/アニメーション/枠 (button_style/button_animated/button_in_frame)
-- [ ] tabs (tab_horizontal/tab_vertical)
-- [ ] scrollbar コンポーネント
-- [ ] textarea (複数行入力) 機能強化
-- [ ] input のスタイル/パスワード/placeholder 表現
-- [ ] menu の複数選択/アニメーション/underline ギャラリー
-- [ ] toggle/checkbox/radiobox の Frame 版
-- [ ] dropdown_custom、menu_custom、renderer/maybe デコレータ
-- [ ] resizable split clamp / window composition / homescreen 等の複合ウィジェット
-- [ ] Canvas/linear gradient/hover/focus gallery などビジュアル系サンプル
+- [x] button のスタイル/アニメーション/枠 (button_style/button_animated/button_in_frame)
+- [x] tabs (tab_horizontal/tab_vertical)
+- [x] scrollbar コンポーネント
+- [x] textarea (複数行入力) 機能強化
+- [x] input のスタイル/パスワード/placeholder 表現
+- [x] menu の複数選択/アニメーション/underline ギャラリー
+- [x] toggle/checkbox/radiobox の Frame 版
+- [x] dropdown_custom、menu_custom、renderer/maybe デコレータ
+- [x] resizable split clamp / window composition / homescreen 等の複合ウィジェット
+- [x] Canvas/linear gradient/hover/focus gallery などビジュアル系サンプル
 
 ## Screen / Rendering
 - [x] Pixel に fg/bg/style を保持し DOM/Component が色を設定できるようにする
