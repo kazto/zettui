@@ -2139,25 +2139,25 @@ fn frameDecoratorRender(self: *base.ComponentBase) anyerror!void {
     const state = @as(*FrameWrapperState, @ptrCast(@alignCast(self.user_data.?)));
     const glyphs = frameGlyphs(state.options.charset);
     const min_width: usize = @max(state.options.title.len + 4, 12);
-    try stdout.writeByte(glyphs.corner);
+    try stdout.writeAll(&[_]u8{glyphs.corner});
     try writeRepeating(stdout, glyphs.horiz, min_width);
-    try stdout.writeByte(glyphs.corner);
+    try stdout.writeAll(&[_]u8{glyphs.corner});
     try stdout.writeAll("\n");
     if (state.options.title.len > 0) {
-        try stdout.writeByte(glyphs.vert);
+        try stdout.writeAll(&[_]u8{glyphs.vert});
         try stdout.writeAll(" ");
         try stdout.writeAll(state.options.title);
         if (min_width + 1 > state.options.title.len + 1) {
             try writeRepeating(stdout, ' ', min_width - state.options.title.len);
         }
         try stdout.writeAll(" ");
-        try stdout.writeByte(glyphs.vert);
+        try stdout.writeAll(&[_]u8{glyphs.vert});
         try stdout.writeAll("\n");
     }
     try state.child.render();
-    try stdout.writeByte(glyphs.corner);
+    try stdout.writeAll(&[_]u8{glyphs.corner});
     try writeRepeating(stdout, glyphs.horiz, min_width);
-    try stdout.writeByte(glyphs.corner);
+    try stdout.writeAll(&[_]u8{glyphs.corner});
     try stdout.writeAll("\n");
 }
 
