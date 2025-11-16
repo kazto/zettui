@@ -1,5 +1,7 @@
 # Visual Gallery Components
 
+> Related tasks: [docs/tasks.md#ftxui-parity-coverage](../tasks.md#ftxui-parity-coverage) — indexed via [docs/examples/README.md](README.md).
+
 Zettui の Component モジュールでは、`widgets.visualGallery` を使って Canvas / Linear Gradient / Hover / Focus の各ギャラリーを一括でレンダリングできます。
 
 ```zig
@@ -15,5 +17,4 @@ const layout = try zettui.component.widgets.splitWithClampIndicator(allocator, h
 try layout.render();
 ```
 
-`docs/tasks-ver2.md` の Component セクションに記載されていたギャラリー系サンプルの不足分は、これらの高レベルコンポーネントを組み合わせることでカバーできます。
-
+`docs/tasks.md` の FTXUI Parity セクションに列挙されているギャラリー系サンプルの不足分は、これらの高レベルコンポーネントを組み合わせることでカバーできます。

@@ -1,5 +1,7 @@
 # Border Style Demo
 
+> Related tasks: [docs/tasks.md#ftxui-parity-coverage](../tasks.md#ftxui-parity-coverage) — indexed via [docs/examples/README.md](README.md).
+
 ```zig
 const frame_double = try zettui.dom.elements.frameStyledOwned(a, zettui.dom.elements.text("Double border"), .{
     .charset = .double,
