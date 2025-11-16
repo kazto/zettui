@@ -12,7 +12,7 @@ const InputEvent = union(enum) {
 
 pub fn main() !void {
     var stdout = std.fs.File.stdout();
-    try stdout.writeAll("Press keys to see their decoded representation. Press 'q' or Ctrl+C to exit.\n");
+    try stdout.writeAll("Press keys to see decoded events. Press 'q' or Ctrl+C to exit.\n");
 
     const stdin_fd = posix.STDIN_FILENO;
     const token = try enableRawMode(stdin_fd);
@@ -40,7 +40,10 @@ pub fn main() !void {
 
 fn logCharacter(stdout: *std.fs.File, ch: u8) !void {
     var buf: [64]u8 = undefined;
-    const printable = if (ch >= 32 and ch <= 126) try std.fmt.bufPrint(&buf, "printable '{c}' (0x{X:0>2})\n", .{ ch, ch }) else try std.fmt.bufPrint(&buf, "byte 0x{X:0>2}\n", .{ch});
+    const printable = if (ch >= 32 and ch <= 126)
+        try std.fmt.bufPrint(&buf, "printable '{c}' (0x{X:0>2})\n", .{ ch, ch })
+    else
+        try std.fmt.bufPrint(&buf, "byte 0x{X:0>2}\n", .{ch});
     try stdout.writeAll(printable);
 }
 
