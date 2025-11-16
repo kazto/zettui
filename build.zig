@@ -132,6 +132,70 @@ pub fn build(b: *std.Build) void {
     const run_interaction_step = b.step("run:interaction", "Run the keyboard + mouse interaction demo");
     run_interaction_step.dependOn(&run_interaction.step);
 
+    // FTXUI parity gallery
+    const ftxui_gallery_module = b.createModule(.{
+        .root_source_file = b.path("examples/ftxui_gallery.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "zettui", .module = zettui_module }},
+    });
+    const ftxui_gallery_exe = b.addExecutable(.{
+        .name = "zettui-ftxui-gallery",
+        .root_module = ftxui_gallery_module,
+    });
+    b.installArtifact(ftxui_gallery_exe);
+    const run_ftxui_gallery = b.addRunArtifact(ftxui_gallery_exe);
+    const run_ftxui_gallery_step = b.step("run:ftxui-gallery", "Run the FTXUI component/graph gallery demo");
+    run_ftxui_gallery_step.dependOn(&run_ftxui_gallery.step);
+
+    // FTXUI table showcase
+    const ftxui_table_module = b.createModule(.{
+        .root_source_file = b.path("examples/ftxui_table.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "zettui", .module = zettui_module }},
+    });
+    const ftxui_table_exe = b.addExecutable(.{
+        .name = "zettui-ftxui-table",
+        .root_module = ftxui_table_module,
+    });
+    b.installArtifact(ftxui_table_exe);
+    const run_ftxui_table = b.addRunArtifact(ftxui_table_exe);
+    const run_ftxui_table_step = b.step("run:ftxui-table", "Run the FTXUI table demo");
+    run_ftxui_table_step.dependOn(&run_ftxui_table.step);
+
+    // print_key_press style input logger
+    const print_key_module = b.createModule(.{
+        .root_source_file = b.path("examples/print_key_press.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "zettui", .module = zettui_module }},
+    });
+    const print_key_exe = b.addExecutable(.{
+        .name = "zettui-print-key-press",
+        .root_module = print_key_module,
+    });
+    b.installArtifact(print_key_exe);
+    const run_print_key = b.addRunArtifact(print_key_exe);
+    const run_print_key_step = b.step("run:print-key-press", "Run the print_key_press-style event loop");
+    run_print_key_step.dependOn(&run_print_key.step);
+
+    // focus_cursor style navigation demo
+    const focus_cursor_module = b.createModule(.{
+        .root_source_file = b.path("examples/focus_cursor.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "zettui", .module = zettui_module }},
+    });
+    const focus_cursor_exe = b.addExecutable(.{
+        .name = "zettui-focus-cursor",
+        .root_module = focus_cursor_module,
+    });
+    b.installArtifact(focus_cursor_exe);
+    const run_focus_cursor = b.addRunArtifact(focus_cursor_exe);
+    const run_focus_cursor_step = b.step("run:focus-cursor", "Run the focus/cursor navigation demo");
+    run_focus_cursor_step.dependOn(&run_focus_cursor.step);
+
     const tests_module = b.createModule(.{
         .root_source_file = b.path("src/lib.zig"),
         .target = target,

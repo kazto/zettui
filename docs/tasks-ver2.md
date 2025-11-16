@@ -33,6 +33,6 @@ Zettui と FTXUI の例を比較して不足している機能を分類したチ
 - [ ] アニメーションループ (canvas_animated など) を支える API
 
 ## その他
-- [ ] DOM/Component/Screen それぞれの例を FTXUI と同等に網羅するドキュメント
-- [ ] references/FTXUI/examples の各サンプルに対応する Zettui 例 (button/menu/graph/table 等)
-- [ ] イベント駆動の入力ハンドリング (print_key_press/focus_cursor)
+- [x] DOM/Component/Screen それぞれの例を FTXUI と同等に網羅するドキュメント
+- [x] references/FTXUI/examples の各サンプルに対応する Zettui 例 (button/menu/graph/table 等)
+- [x] イベント駆動の入力ハンドリング (print_key_press/focus_cursor)
