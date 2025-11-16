@@ -27,10 +27,10 @@ Zettui と FTXUI の例を比較して不足している機能を分類したチ
 
 ## Screen / Rendering
 - [x] Pixel に fg/bg/style を保持し DOM/Component が色を設定できるようにする
-- [ ] グラデーション・色補間ヘルパー
-- [ ] ScreenInteractive / CapturedMouse 相当の入力ループ
-- [ ] nested_screen / restored_io / custom_loop の足場
-- [ ] アニメーションループ (canvas_animated など) を支える API
+- [x] グラデーション・色補間ヘルパー
+- [x] ScreenInteractive / CapturedMouse 相当の入力ループ
+- [x] nested_screen / restored_io / custom_loop の足場
+- [x] アニメーションループ (canvas_animated など) を支える API
 
 ## その他
 - [ ] DOM/Component/Screen それぞれの例を FTXUI と同等に網羅するドキュメント
