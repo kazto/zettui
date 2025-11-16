@@ -6,11 +6,11 @@ Zettui と FTXUI の例を比較して不足している機能を分類したチ
 - [x] スタイル装飾 (bold/italic/underline/double underline/strikethrough/dim/blink/inverted/hyperlink/color/gradient)
 - [x] パレット/true-color などの色指定サポート
 - [x] 線スタイルつき border / border_colored
-- [ ] gridbox/table/hflow/vflow/html_like/tree (package_manager) などのレイアウト
+- [x] gridbox/table/hflow/vflow/html_like/tree (package_manager) などのレイアウト
 - [x] linear_gradient DOM ノード
-- [ ] gauge の方向 (horizontal/vertical)・バリエーション
-- [ ] canvas のアニメーション/描画ユーティリティ
-- [ ] size/separator/border のスタイルバリエーション
+- [x] gauge の方向 (horizontal/vertical)・バリエーション
+- [x] canvas のアニメーション/描画ユーティリティ
+- [x] size/separator/border のスタイルバリエーション
 - [x] DOM 中での color gallery / style gallery を再現する API
 
 ## Components

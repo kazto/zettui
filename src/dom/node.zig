@@ -204,6 +204,30 @@ fn frameCharset(style: FrameBorderStyle) FrameCharset {
             .horizontal = "\xE2\x95\x90",
             .vertical = "\xE2\x95\x91",
         },
+        .rounded => .{
+            .top_left = "\xE2\x94\x8D",
+            .top_right = "\xE2\x94\x91",
+            .bottom_left = "\xE2\x94\x95",
+            .bottom_right = "\xE2\x94\x99",
+            .horizontal = "\xE2\x94\x80",
+            .vertical = "\xE2\x94\x82",
+        },
+        .heavy => .{
+            .top_left = "\xE2\x95\x93",
+            .top_right = "\xE2\x95\x96",
+            .bottom_left = "\xE2\x95\x99",
+            .bottom_right = "\xE2\x95\x9C",
+            .horizontal = "\xE2\x95\xA1",
+            .vertical = "\xE2\x95\xA3",
+        },
+        .ascii => .{
+            .top_left = "+",
+            .top_right = "+",
+            .bottom_left = "+",
+            .bottom_right = "+",
+            .horizontal = "-",
+            .vertical = "|",
+        },
     };
 }
 
@@ -323,6 +347,7 @@ pub const Node = union(enum) {
     paragraph: Paragraph,
     graph: Graph,
     canvas: Canvas,
+    canvas_animation: CanvasAnimation,
     gradient_text: GradientText,
     frame: Frame,
     size: Size,
@@ -339,9 +364,27 @@ pub const Node = union(enum) {
                 .min_width = text_node.content.len,
                 .min_height = 1,
             },
-            .separator => Requirement{ .min_width = 1, .min_height = 1 },
+            .separator => |sep| separatorRequirement(sep),
             .window => |w| Requirement{ .min_width = 2 + w.title.len, .min_height = 1 },
-            .gauge => |g| Requirement{ .min_width = @max(@as(usize, 3), g.width), .min_height = 1 },
+            .gauge => |g| blkGauge: {
+                const body = @max(@as(usize, 3), g.width);
+                const label_width: usize = if (g.label.len > 0) g.label.len + 1 else 0;
+                const percent_width: usize = if (g.show_percentage) 5 else 0;
+                var label_lines: usize = 0;
+                if (g.label.len > 0) label_lines = 1;
+                var percent_lines: usize = 0;
+                if (g.show_percentage) percent_lines = 1;
+                switch (g.orientation) {
+                    .horizontal => break :blkGauge Requirement{
+                        .min_width = body + label_width + percent_width,
+                        .min_height = 1,
+                    },
+                    .vertical => break :blkGauge Requirement{
+                        .min_width = 3 + label_width,
+                        .min_height = body + label_lines + percent_lines,
+                    },
+                }
+            },
             .spinner => |s| Requirement{ .min_width = s.currentFrame().len, .min_height = 1 },
             .paragraph => |p| blk: {
                 const w: usize = if (p.width == 0) 1 else p.width;
@@ -358,6 +401,13 @@ pub const Node = union(enum) {
             .canvas => |c| blkCanvas: {
                 const dims = c.dimensions();
                 break :blkCanvas Requirement{
+                    .min_width = dims.width,
+                    .min_height = dims.height,
+                };
+            },
+            .canvas_animation => |anim| blkCanvasAnim: {
+                const dims = anim.current().dimensions();
+                break :blkCanvasAnim Requirement{
                     .min_width = dims.width,
                     .min_height = dims.height,
                 };
@@ -464,8 +514,8 @@ pub const Node = union(enum) {
                     try ctxWrite(ctx, text_node.content);
                 }
             },
-            .separator => {
-                try ctxWrite(ctx, "---\n");
+            .separator => |sep| {
+                try renderSeparator(sep, ctx);
             },
             .window => |w| {
                 if (ctx.drawer != null) {
@@ -481,30 +531,9 @@ pub const Node = union(enum) {
                     try ctxWrite(ctx, "]");
                 }
             },
-            .gauge => |g| {
-                const total = if (g.width < 3) 3 else g.width;
-                const inner: usize = total - 2;
-                const clamped = std.math.clamp(g.fraction, 0.0, 1.0);
-                const filled: usize = @intFromFloat(@floor(@as(f32, @floatFromInt(inner)) * clamped + 0.0001));
-                const empty: usize = inner - filled;
-                if (ctx.drawer != null) {
-                    var buf = std.array_list.Managed(u8).init(std.heap.page_allocator);
-                    defer buf.deinit();
-                    try buf.appendSlice("[");
-                    var i: usize = 0;
-                    while (i < filled) : (i += 1) try buf.append('#');
-                    i = 0;
-                    while (i < empty) : (i += 1) try buf.append('.');
-                    try buf.appendSlice("]");
-                    try ctxDraw(ctx, ctx.origin_x, ctx.origin_y, buf.items);
-                } else {
-                    try ctxWrite(ctx, "[");
-                    var i: usize = 0;
-                    while (i < filled) : (i += 1) try ctxWrite(ctx, "#");
-                    i = 0;
-                    while (i < empty) : (i += 1) try ctxWrite(ctx, ".");
-                    try ctxWrite(ctx, "]");
-                }
+            .gauge => |g| switch (g.orientation) {
+                .horizontal => try renderHorizontalGauge(g, ctx),
+                .vertical => try renderVerticalGauge(g, ctx),
             },
             .spinner => |s| {
                 try ctxWrite(ctx, s.currentFrame());
@@ -533,6 +562,10 @@ pub const Node = union(enum) {
             },
             .graph => |g| try g.render(ctx),
             .canvas => |c| try c.render(ctx),
+            .canvas_animation => |anim| {
+                const frame = anim.current();
+                try frame.render(ctx);
+            },
             .gradient_text => |g| try g.render(ctx),
             .custom => |renderer| try @call(.auto, renderer.callback, .{ renderer.user_data, ctx }),
             .frame => |f| {
@@ -812,6 +845,11 @@ pub const Node = union(enum) {
                 selection.setAccessibility(.text, "Canvas", "Custom drawing", "", "");
                 selection.setCursor(0, 0);
             },
+            .canvas_animation => |anim| {
+                _ = anim;
+                selection.setAccessibility(.text, "Canvas", "Animated drawing", "", "");
+                selection.setCursor(0, 0);
+            },
             .separator => {
                 selection.setAccessibility(.none, "Separator", "Visual separator", "", "");
             },
@@ -842,6 +880,7 @@ pub const Node = union(enum) {
                 if (c.child) |ch| break :blkSel3 try ch.*.getSelectedContent(allocator);
                 break :blkSel3 "";
             },
+            .canvas_animation => "",
             else => "",
         };
     }
@@ -858,18 +897,151 @@ pub const CustomRenderer = struct {
 
 pub const Orientation = enum { vertical, horizontal };
 
+pub const SeparatorStyle = enum {
+    plain,
+    dashed,
+    double,
+    dotted,
+    heavy,
+};
+
 pub const Separator = struct {
     orientation: Orientation = .horizontal,
+    style: SeparatorStyle = .plain,
+    length: usize = 0,
 };
+
+const SeparatorGlyphs = struct {
+    horizontal: []const u8,
+    vertical: []const u8,
+};
+
+fn separatorRequirement(sep: Separator) Requirement {
+    const span = if (sep.length > 0) sep.length else 1;
+    return switch (sep.orientation) {
+        .horizontal => Requirement{ .min_width = span, .min_height = 1 },
+        .vertical => Requirement{ .min_width = 1, .min_height = span },
+    };
+}
+
+fn separatorGlyphs(style: SeparatorStyle) SeparatorGlyphs {
+    return switch (style) {
+        .plain => .{ .horizontal = "\xE2\x94\x80", .vertical = "\xE2\x94\x82" },
+        .dashed => .{ .horizontal = "- ", .vertical = "|" },
+        .double => .{ .horizontal = "\xE2\x95\x90", .vertical = "\xE2\x95\x91" },
+        .dotted => .{ .horizontal = ". ", .vertical = ":" },
+        .heavy => .{ .horizontal = "\xE2\x94\x81", .vertical = "\xE2\x94\x83" },
+    };
+}
+
+fn renderSeparator(sep: Separator, ctx: *RenderContext) !void {
+    const glyphs = separatorGlyphs(sep.style);
+    const span = if (sep.length > 0) sep.length else 1;
+    switch (sep.orientation) {
+        .horizontal => {
+            var written: usize = 0;
+            while (written < span) {
+                const remaining = span - written;
+                const chunk = if (glyphs.horizontal.len <= remaining) glyphs.horizontal else glyphs.horizontal[0..remaining];
+                try ctxWrite(ctx, chunk);
+                written += chunk.len;
+            }
+            try ctxWrite(ctx, "\n");
+        },
+        .vertical => {
+            var i: usize = 0;
+            while (i < span) : (i += 1) {
+                try ctxWrite(ctx, glyphs.vertical);
+                try ctxWrite(ctx, "\n");
+            }
+        },
+    }
+}
 
 pub const WindowFrame = struct {
     title: []const u8 = "",
 };
 
+pub const GaugeOrientation = enum { horizontal, vertical };
+
 pub const Gauge = struct {
     fraction: f32 = 0.0,
     width: usize = 10,
+    orientation: GaugeOrientation = .horizontal,
+    fill_char: u8 = '#',
+    empty_char: u8 = '.',
+    show_percentage: bool = false,
+    label: []const u8 = "",
 };
+
+fn renderHorizontalGauge(g: Gauge, ctx: *RenderContext) !void {
+    const total = if (g.width < 3) 3 else g.width;
+    const inner: usize = total - 2;
+    const clamped = std.math.clamp(g.fraction, 0.0, 1.0);
+    const filled: usize = @intFromFloat(@floor(@as(f32, @floatFromInt(inner)) * clamped + 0.0001));
+    const empty: usize = inner - filled;
+
+    var buf = std.array_list.Managed(u8).init(std.heap.page_allocator);
+    defer buf.deinit();
+    try buf.appendSlice("[");
+    var i: usize = 0;
+    while (i < filled) : (i += 1) try buf.append(g.fill_char);
+    i = 0;
+    while (i < empty) : (i += 1) try buf.append(g.empty_char);
+    try buf.appendSlice("]");
+
+    if (g.show_percentage) {
+        var tmp: [16]u8 = undefined;
+        const percent: usize = @intFromFloat(@round(clamped * 100.0));
+        const pct_text = try std.fmt.bufPrint(&tmp, " {d:0>3}%", .{percent});
+        try buf.appendSlice(pct_text);
+    }
+    if (g.label.len > 0) {
+        try buf.appendSlice(" ");
+        try buf.appendSlice(g.label);
+    }
+
+    if (ctx.drawer != null) {
+        try ctxDraw(ctx, ctx.origin_x, ctx.origin_y, buf.items);
+    } else {
+        try ctxWrite(ctx, buf.items);
+    }
+}
+
+fn renderVerticalGauge(g: Gauge, ctx: *RenderContext) !void {
+    const total = if (g.width < 3) 3 else g.width;
+    const clamped = std.math.clamp(g.fraction, 0.0, 1.0);
+    const filled: usize = @intFromFloat(@floor(@as(f32, @floatFromInt(total)) * clamped + 0.0001));
+
+    var buf = std.array_list.Managed(u8).init(std.heap.page_allocator);
+    defer buf.deinit();
+
+    var row: usize = total;
+    while (row > 0) : (row -= 1) {
+        const ch = if (row <= filled) g.fill_char else g.empty_char;
+        try buf.appendSlice("[");
+        try buf.append(ch);
+        try buf.appendSlice("]\n");
+    }
+
+    if (g.show_percentage) {
+        var tmp: [16]u8 = undefined;
+        const percent: usize = @intFromFloat(@round(clamped * 100.0));
+        const pct_text = try std.fmt.bufPrint(&tmp, "{d:0>3}%", .{percent});
+        try buf.appendSlice(pct_text);
+        try buf.appendSlice("\n");
+    }
+    if (g.label.len > 0) {
+        try buf.appendSlice(g.label);
+        try buf.appendSlice("\n");
+    }
+
+    if (ctx.drawer != null) {
+        try ctxDraw(ctx, ctx.origin_x, ctx.origin_y, buf.items);
+    } else {
+        try ctxWrite(ctx, buf.items);
+    }
+}
 
 pub const Spinner = struct {
     frames: []const []const u8 = &[_][]const u8{ "-", "\\", "|", "/" },
@@ -1047,7 +1219,28 @@ pub const Canvas = struct {
     }
 };
 
-pub const FrameBorderStyle = enum { single, double };
+pub const CanvasAnimation = struct {
+    frames: []const Canvas = &[_]Canvas{},
+    index: usize = 0,
+
+    pub fn current(self: CanvasAnimation) Canvas {
+        if (self.frames.len == 0) return Canvas{};
+        return self.frames[self.index % self.frames.len];
+    }
+
+    pub fn advance(self: *CanvasAnimation) void {
+        if (self.frames.len == 0) return;
+        self.index +%= 1;
+    }
+};
+
+pub const FrameBorderStyle = enum {
+    single,
+    double,
+    rounded,
+    heavy,
+    ascii,
+};
 
 pub const FrameBorder = struct {
     charset: FrameBorderStyle = .single,
@@ -1519,6 +1712,43 @@ test "frame renders paragraph with per-line borders and padding" {
         "\xE2\x94\x94\xE2\x94\x80\xE2\x94\x80\xE2\x94\x80\xE2\x94\x80\xE2\x94\x98\n" ++
         "\x1b[0m";
     try std.testing.expectEqualStrings(expected, managed.items);
+}
+
+test "canvas animation requirement tracks active frame" {
+    const frame_a = Canvas{ .rows = &[_][]const u8{"aa"} };
+    const frame_b = Canvas{ .rows = &[_][]const u8{ "long", "row" } };
+    const n = Node{ .canvas_animation = .{ .frames = &[_]Canvas{ frame_a, frame_b }, .index = 1 } };
+    const req = n.computeRequirement();
+    try std.testing.expectEqual(@as(usize, 4), req.min_width);
+    try std.testing.expectEqual(@as(usize, 2), req.min_height);
+}
+
+test "canvas animation advances through frames" {
+    var managed = std.array_list.Managed(u8).init(std.testing.allocator);
+    defer managed.deinit();
+    const Adapter = struct {
+        fn write(user_data: *anyopaque, data: []const u8) anyerror!void {
+            const buf = @as(*std.array_list.Managed(u8), @ptrCast(@alignCast(user_data)));
+            try buf.appendSlice(data);
+        }
+    };
+
+    const frame_a = Canvas{ .rows = &[_][]const u8{"A"} };
+    const frame_b = Canvas{ .rows = &[_][]const u8{"B"} };
+    var node_anim = Node{ .canvas_animation = .{ .frames = &[_]Canvas{ frame_a, frame_b } } };
+    var ctx = RenderContext{
+        .sink = .{ .user_data = @as(*anyopaque, @ptrCast(&managed)), .writeAll = Adapter.write },
+    };
+
+    try node_anim.render(&ctx);
+    try std.testing.expect(std.mem.indexOf(u8, managed.items, "A") != null);
+    managed.items.len = 0;
+    switch (node_anim) {
+        .canvas_animation => |*anim| anim.advance(),
+        else => unreachable,
+    }
+    try node_anim.render(&ctx);
+    try std.testing.expect(std.mem.indexOf(u8, managed.items, "B") != null);
 }
 
 test "frame supports double border charset" {
