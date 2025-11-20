@@ -29,7 +29,7 @@ fn makeRuntimeLayout(allocator: std.mem.Allocator) !zettui.dom.Node {
 
 fn makeHeading(allocator: std.mem.Allocator) !zettui.dom.Node {
     const raw = zettui.dom.elements.text("Zettui Runtime Snapshot");
-    const colored = try zettui.dom.elements.styledOwnedNode(allocator, raw, .{ .fg = 0xF7C948 });
+    const colored = try zettui.dom.elements.styleOwned(allocator, raw, .{ .fg = 0xF7C948 });
     const ptr = try allocator.create(zettui.dom.Node);
     ptr.* = colored;
     return zettui.dom.elements.bold(ptr);

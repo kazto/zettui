@@ -1,5 +1,4 @@
 const std = @import("std");
-const image = @import("../screen/image.zig");
 
 pub const FocusPosition = enum { start, center, end };
 
@@ -27,9 +26,9 @@ pub const AccessibilityRole = enum {
     heading,
     list,
     list_item,
-    container,
     table,
     table_cell,
+    container,
     none,
 };
 
@@ -93,9 +92,8 @@ pub const Selection = struct {
     }
 
     pub fn getAccessibilityDescription(self: Selection, allocator: std.mem.Allocator) ![]const u8 {
-        var buf = std.ArrayListUnmanaged(u8){};
-        defer buf.deinit(allocator);
-        try buf.ensureTotalCapacity(allocator, 256);
+        var buf = std.ArrayList(u8).initCapacity(allocator, 256) catch |e| return e;
+        errdefer buf.deinit(allocator);
 
         if (self.label.len > 0) {
             try buf.appendSlice(allocator, self.label);
@@ -120,6 +118,136 @@ pub const Selection = struct {
     }
 };
 
+pub const PaletteColor = enum {
+    black,
+    red,
+    green,
+    yellow,
+    blue,
+    magenta,
+    cyan,
+    white,
+    bright_black,
+    bright_red,
+    bright_green,
+    bright_yellow,
+    bright_blue,
+    bright_magenta,
+    bright_cyan,
+    bright_white,
+};
+
+pub const StyleAttributes = struct {
+    bold: bool = false,
+    italic: bool = false,
+    underline: bool = false,
+    underline_double: bool = false,
+    strikethrough: bool = false,
+    dim: bool = false,
+    blink: bool = false,
+    inverse: bool = false,
+    fg: ?u24 = null,
+    bg: ?u24 = null,
+    fg_palette: ?PaletteColor = null,
+    bg_palette: ?PaletteColor = null,
+    hyperlink: ?[]const u8 = null,
+};
+
+pub fn paletteColorValue(color: PaletteColor) u24 {
+    return switch (color) {
+        .black => 0x000000,
+        .red => 0xAA0000,
+        .green => 0x008800,
+        .yellow => 0xAA5500,
+        .blue => 0x0000AA,
+        .magenta => 0xAA00AA,
+        .cyan => 0x00AAAA,
+        .white => 0xAAAAAA,
+        .bright_black => 0x555555,
+        .bright_red => 0xFF5555,
+        .bright_green => 0x55FF55,
+        .bright_yellow => 0xFFFF55,
+        .bright_blue => 0x5555FF,
+        .bright_magenta => 0xFF55FF,
+        .bright_cyan => 0x55FFFF,
+        .bright_white => 0xFFFFFF,
+    };
+}
+
+fn resolveColor(explicit: ?u24, palette: ?PaletteColor, default_color: u24) u24 {
+    if (explicit) |c| return c;
+    if (palette) |entry| return paletteColorValue(entry);
+    return default_color;
+}
+
+const FrameCharset = struct {
+    top_left: []const u8,
+    top_right: []const u8,
+    bottom_left: []const u8,
+    bottom_right: []const u8,
+    horizontal: []const u8,
+    vertical: []const u8,
+};
+
+fn frameCharset(style: FrameBorderStyle) FrameCharset {
+    return switch (style) {
+        .single => .{
+            .top_left = "\xE2\x94\x8C",
+            .top_right = "\xE2\x94\x90",
+            .bottom_left = "\xE2\x94\x94",
+            .bottom_right = "\xE2\x94\x98",
+            .horizontal = "\xE2\x94\x80",
+            .vertical = "\xE2\x94\x82",
+        },
+        .double => .{
+            .top_left = "\xE2\x95\x94",
+            .top_right = "\xE2\x95\x97",
+            .bottom_left = "\xE2\x95\x9A",
+            .bottom_right = "\xE2\x95\x9D",
+            .horizontal = "\xE2\x95\x90",
+            .vertical = "\xE2\x95\x91",
+        },
+        .rounded => .{
+            .top_left = "\xE2\x94\x8D",
+            .top_right = "\xE2\x94\x91",
+            .bottom_left = "\xE2\x94\x95",
+            .bottom_right = "\xE2\x94\x99",
+            .horizontal = "\xE2\x94\x80",
+            .vertical = "\xE2\x94\x82",
+        },
+        .heavy => .{
+            .top_left = "\xE2\x95\x93",
+            .top_right = "\xE2\x95\x96",
+            .bottom_left = "\xE2\x95\x99",
+            .bottom_right = "\xE2\x95\x9C",
+            .horizontal = "\xE2\x95\xA1",
+            .vertical = "\xE2\x95\xA3",
+        },
+        .ascii => .{
+            .top_left = "+",
+            .top_right = "+",
+            .bottom_left = "+",
+            .bottom_right = "+",
+            .horizontal = "-",
+            .vertical = "|",
+        },
+    };
+}
+
+fn blendColor(start: u24, end: u24, t: f32) u24 {
+    const clamped = std.math.clamp(t, 0.0, 1.0);
+    const sr = (start >> 16) & 0xFF;
+    const sg = (start >> 8) & 0xFF;
+    const sb = start & 0xFF;
+    const er = (end >> 16) & 0xFF;
+    const eg = (end >> 8) & 0xFF;
+    const eb = end & 0xFF;
+    const r = @as(u8, @intFromFloat(@as(f32, @floatFromInt(sr)) * (1.0 - clamped) + @as(f32, @floatFromInt(er)) * clamped));
+    const g = @as(u8, @intFromFloat(@as(f32, @floatFromInt(sg)) * (1.0 - clamped) + @as(f32, @floatFromInt(eg)) * clamped));
+    const b = @as(u8, @intFromFloat(@as(f32, @floatFromInt(sb)) * (1.0 - clamped) + @as(f32, @floatFromInt(eb)) * clamped));
+    return (@as(u24, r) << 16) | (@as(u24, g) << 8) | b;
+}
+
 pub const RenderContext = struct {
     allow_hyperlinks: bool = false,
     sink: ?Sink = null,
@@ -127,7 +255,7 @@ pub const RenderContext = struct {
     origin_x: i32 = 0,
     origin_y: i32 = 0,
     allocator: ?std.mem.Allocator = null,
-    current_style: image.Pixel = .{}, // New field
+    style: StyleAttributes = .{},
     current_hyperlink: ?[]const u8 = null,
 };
 
@@ -135,14 +263,6 @@ pub const Sink = struct {
     user_data: *anyopaque,
     writeAll: *const fn (user_data: *anyopaque, data: []const u8) anyerror!void,
 };
-
-fn ctxWriteRaw(ctx: *RenderContext, data: []const u8) !void {
-    if (ctx.sink) |s| {
-        try s.writeAll(s.user_data, data);
-    } else {
-        try std.fs.File.stdout().writeAll(data);
-    }
-}
 
 fn ctxWrite(ctx: *RenderContext, data: []const u8) !void {
     if (ctx.allow_hyperlinks) {
@@ -158,6 +278,80 @@ fn ctxWrite(ctx: *RenderContext, data: []const u8) !void {
         }
     }
     try ctxWriteRaw(ctx, data);
+}
+
+fn ctxWriteRaw(ctx: *RenderContext, data: []const u8) !void {
+    if (ctx.sink) |s| {
+        try s.writeAll(s.user_data, data);
+    } else {
+        try std.fs.File.stdout().writeAll(data);
+    }
+}
+
+fn stylesEqual(a: StyleAttributes, b: StyleAttributes) bool {
+    const hyperlinks_equal = if (a.hyperlink) |h1| blk: {
+        if (b.hyperlink) |h2| break :blk std.mem.eql(u8, h1, h2);
+        break :blk false;
+    } else b.hyperlink == null;
+    return a.bold == b.bold and
+        a.italic == b.italic and
+        a.underline == b.underline and
+        a.underline_double == b.underline_double and
+        a.strikethrough == b.strikethrough and
+        a.dim == b.dim and
+        a.blink == b.blink and
+        a.inverse == b.inverse and
+        a.fg == b.fg and
+        a.bg == b.bg and
+        a.fg_palette == b.fg_palette and
+        a.bg_palette == b.bg_palette and
+        hyperlinks_equal;
+}
+
+fn mergeStyles(base: StyleAttributes, overlay: StyleAttributes) StyleAttributes {
+    return .{
+        .bold = base.bold or overlay.bold,
+        .italic = base.italic or overlay.italic,
+        .underline = base.underline or overlay.underline,
+        .underline_double = base.underline_double or overlay.underline_double,
+        .strikethrough = base.strikethrough or overlay.strikethrough,
+        .dim = base.dim or overlay.dim,
+        .blink = base.blink or overlay.blink,
+        .inverse = base.inverse or overlay.inverse,
+        .fg = overlay.fg orelse base.fg,
+        .bg = overlay.bg orelse base.bg,
+        .fg_palette = overlay.fg_palette orelse base.fg_palette,
+        .bg_palette = overlay.bg_palette orelse base.bg_palette,
+        .hyperlink = overlay.hyperlink orelse base.hyperlink,
+    };
+}
+
+fn applyAnsiStyle(ctx: *RenderContext, style: StyleAttributes) !void {
+    if (ctx.drawer != null) return;
+    try ctxWriteRaw(ctx, "\x1b[0m");
+    if (style.bold) try ctxWriteRaw(ctx, "\x1b[1m");
+    if (style.dim) try ctxWriteRaw(ctx, "\x1b[2m");
+    if (style.italic) try ctxWriteRaw(ctx, "\x1b[3m");
+    if (style.underline) try ctxWriteRaw(ctx, "\x1b[4m");
+    if (style.blink) try ctxWriteRaw(ctx, "\x1b[5m");
+    if (style.inverse) try ctxWriteRaw(ctx, "\x1b[7m");
+    if (style.strikethrough) try ctxWriteRaw(ctx, "\x1b[9m");
+    if (style.underline_double) try ctxWriteRaw(ctx, "\x1b[21m");
+    const fg_value = resolveColor(style.fg, style.fg_palette, 0xFFFFFF);
+    const bg_value = resolveColor(style.bg, style.bg_palette, 0x000000);
+    if (style.fg != null or style.fg_palette != null) try writeRgb(ctx, fg_value, true);
+    if (style.bg != null or style.bg_palette != null) try writeRgb(ctx, bg_value, false);
+}
+
+fn writeRgb(ctx: *RenderContext, color: u24, is_fg: bool) !void {
+    if (ctx.drawer != null) return;
+    var buf: [32]u8 = undefined;
+    const r = @as(u8, @intCast((color >> 16) & 0xFF));
+    const g = @as(u8, @intCast((color >> 8) & 0xFF));
+    const b = @as(u8, @intCast(color & 0xFF));
+    const prefix: u8 = if (is_fg) 38 else 48;
+    const seq = try std.fmt.bufPrint(&buf, "\x1b[{d};2;{d};{d};{d}m", .{ prefix, r, g, b });
+    try ctxWriteRaw(ctx, seq);
 }
 
 pub const Box = struct {
@@ -179,6 +373,8 @@ pub const Node = union(enum) {
     paragraph: Paragraph,
     graph: Graph,
     canvas: Canvas,
+    canvas_animation: CanvasAnimation,
+    gradient_text: GradientText,
     frame: Frame,
     size: Size,
     filler: Filler,
@@ -186,7 +382,7 @@ pub const Node = union(enum) {
     flexbox: Flexbox,
     dbox: Dbox,
     cursor: Cursor,
-    styled: Styled, // New variant
+    style: StyleDecorator,
     table: Table,
     automerge: Automerge,
     scroll: ScrollDecorator,
@@ -198,9 +394,27 @@ pub const Node = union(enum) {
                 .min_width = text_node.content.len,
                 .min_height = 1,
             },
-            .separator => Requirement{ .min_width = 1, .min_height = 1 },
+            .separator => |sep| separatorRequirement(sep),
             .window => |w| Requirement{ .min_width = 2 + w.title.len, .min_height = 1 },
-            .gauge => |g| Requirement{ .min_width = @max(@as(usize, 3), g.width), .min_height = 1 },
+            .gauge => |g| blkGauge: {
+                const body = @max(@as(usize, 3), g.width);
+                const label_width: usize = if (g.label.len > 0) g.label.len + 1 else 0;
+                const percent_width: usize = if (g.show_percentage) 5 else 0;
+                var label_lines: usize = 0;
+                if (g.label.len > 0) label_lines = 1;
+                var percent_lines: usize = 0;
+                if (g.show_percentage) percent_lines = 1;
+                switch (g.orientation) {
+                    .horizontal => break :blkGauge Requirement{
+                        .min_width = body + label_width + percent_width,
+                        .min_height = 1,
+                    },
+                    .vertical => break :blkGauge Requirement{
+                        .min_width = 3 + label_width,
+                        .min_height = body + label_lines + percent_lines,
+                    },
+                }
+            },
             .spinner => |s| Requirement{ .min_width = s.currentFrame().len, .min_height = 1 },
             .paragraph => |p| blk: {
                 const w: usize = if (p.width == 0) 1 else p.width;
@@ -220,6 +434,17 @@ pub const Node = union(enum) {
                     .min_width = dims.width,
                     .min_height = dims.height,
                 };
+            },
+            .canvas_animation => |anim| blkCanvasAnim: {
+                const dims = anim.current().dimensions();
+                break :blkCanvasAnim Requirement{
+                    .min_width = dims.width,
+                    .min_height = dims.height,
+                };
+            },
+            .gradient_text => |g| Requirement{
+                .min_width = g.text.len,
+                .min_height = if (g.text.len == 0) 0 else 1,
             },
             .size => |s| blkSize: {
                 const child_req = s.child.*.computeRequirement();
@@ -242,10 +467,8 @@ pub const Node = union(enum) {
             .flexbox => |fb| blkFlex: {
                 var req = Requirement{};
                 const count = fb.children.len;
-                const gap = fb.config.gap orelse fb.gap;
-                const gap_total: usize = if (count > 0) gap * (count - 1) else 0;
-                const direction = fb.config.direction orelse fb.direction;
-                switch (direction) {
+                const gap_total: usize = if (count > 0) fb.gap * (count - 1) else 0;
+                switch (fb.direction) {
                     .row => {
                         req.min_height = 0;
                         req.min_width = gap_total;
@@ -265,13 +488,6 @@ pub const Node = union(enum) {
                         }
                     },
                 }
-                if (fb.config.constraint == .equal and count > 0) {
-                    const cr = fb.children[0].computeRequirement();
-                    switch (direction) {
-                        .row => req.min_width = cr.min_width * count + gap_total,
-                        .column => req.min_height = cr.min_height * count + gap_total,
-                    }
-                }
                 break :blkFlex req;
             },
             .dbox => |db| blkD: {
@@ -288,7 +504,17 @@ pub const Node = union(enum) {
                 if (c.child) |ch| break :blkCur ch.*.computeRequirement();
                 break :blkCur Requirement{};
             },
-            .styled => |s| s.child.*.computeRequirement(), // New: Styled node
+            .container => |container_node| container_node.computeRequirement(),
+            .frame => |f| blockFrame: {
+                const child_req = f.child.computeRequirement();
+                break :blockFrame Requirement{
+                    .min_width = child_req.min_width + 2,
+                    .min_height = child_req.min_height + 2,
+                };
+            },
+            .style => |s| blkStyle: {
+                break :blkStyle s.child.*.computeRequirement();
+            },
             .table => |t| blkTable: {
                 const dims = t.bounds();
                 break :blkTable Requirement{
@@ -320,14 +546,6 @@ pub const Node = union(enum) {
                     .min_height = child_req.min_height,
                 };
             },
-            .container => |container_node| container_node.computeRequirement(),
-            .frame => |f| blockFrame: {
-                const child_req = f.child.computeRequirement();
-                break :blockFrame Requirement{
-                    .min_width = child_req.min_width + 2,
-                    .min_height = child_req.min_height + 2,
-                };
-            },
             else => Requirement{},
         };
     }
@@ -337,10 +555,6 @@ pub const Node = union(enum) {
             .container => |*container_node| container_node.box = box,
             .flexbox => |*fb| fb.box = box,
             .dbox => |*db| db.box = box,
-            .styled => |*s| {
-                const child = @constCast(s.child);
-                child.*.setBox(box);
-            },
             .center => |*c| {
                 const child = @constCast(c.child);
                 child.*.setBox(box);
@@ -364,13 +578,13 @@ pub const Node = union(enum) {
         switch (self) {
             .text => |text_node| {
                 if (ctx.drawer != null) {
-                    try ctxDraw(ctx, ctx.origin_x, ctx.origin_y, text_node.content, ctx.current_style);
+                    try ctxDraw(ctx, ctx.origin_x, ctx.origin_y, text_node.content);
                 } else {
                     try ctxWrite(ctx, text_node.content);
                 }
             },
-            .separator => {
-                try ctxWrite(ctx, "---\n");
+            .separator => |sep| {
+                try renderSeparator(sep, ctx);
             },
             .window => |w| {
                 if (ctx.drawer != null) {
@@ -379,37 +593,16 @@ pub const Node = union(enum) {
                     try buf.appendSlice("[");
                     try buf.appendSlice(w.title);
                     try buf.appendSlice("]");
-                    try ctxDraw(ctx, ctx.origin_x, ctx.origin_y, buf.items, ctx.current_style);
+                    try ctxDraw(ctx, ctx.origin_x, ctx.origin_y, buf.items);
                 } else {
                     try ctxWrite(ctx, "[");
                     try ctxWrite(ctx, w.title);
                     try ctxWrite(ctx, "]");
                 }
             },
-            .gauge => |g| {
-                const total = if (g.width < 3) 3 else g.width;
-                const inner: usize = total - 2;
-                const clamped = std.math.clamp(g.fraction, 0.0, 1.0);
-                const filled: usize = @intFromFloat(@floor(@as(f32, @floatFromInt(inner)) * clamped + 0.0001));
-                const empty: usize = inner - filled;
-                if (ctx.drawer != null) {
-                    var buf = std.array_list.Managed(u8).init(std.heap.page_allocator);
-                    defer buf.deinit();
-                    try buf.appendSlice("[");
-                    var i: usize = 0;
-                    while (i < filled) : (i += 1) try buf.append('#');
-                    i = 0;
-                    while (i < empty) : (i += 1) try buf.append('.');
-                    try buf.appendSlice("]");
-                    try ctxDraw(ctx, ctx.origin_x, ctx.origin_y, buf.items, ctx.current_style);
-                } else {
-                    try ctxWrite(ctx, "[");
-                    var i: usize = 0;
-                    while (i < filled) : (i += 1) try ctxWrite(ctx, "#");
-                    i = 0;
-                    while (i < empty) : (i += 1) try ctxWrite(ctx, ".");
-                    try ctxWrite(ctx, "]");
-                }
+            .gauge => |g| switch (g.orientation) {
+                .horizontal => try renderHorizontalGauge(g, ctx),
+                .vertical => try renderVerticalGauge(g, ctx),
             },
             .spinner => |s| {
                 try ctxWrite(ctx, s.currentFrame());
@@ -422,7 +615,7 @@ pub const Node = union(enum) {
                     while (idx < p.content.len) {
                         const rem = p.content.len - idx;
                         const take = if (rem < w) rem else w;
-                        try ctxDraw(ctx, ctx.origin_x, row, p.content[idx .. idx + take], ctx.current_style);
+                        try ctxDraw(ctx, ctx.origin_x, row, p.content[idx .. idx + take]);
                         idx += take;
                         row += 1;
                     }
@@ -438,15 +631,29 @@ pub const Node = union(enum) {
             },
             .graph => |g| try g.render(ctx),
             .canvas => |c| try c.render(ctx),
+            .canvas_animation => |anim| {
+                const frame = anim.current();
+                try frame.render(ctx);
+            },
+            .gradient_text => |g| try g.render(ctx),
             .custom => |renderer| try @call(.auto, renderer.callback, .{ renderer.user_data, ctx }),
             .frame => |f| {
                 const req = f.child.*.computeRequirement();
                 const inner_w: usize = req.min_width;
-                // top border: ┌───┐
-                try ctxWrite(ctx, "\xE2\x94\x8C"); // ┌
-                var i: usize = 0;
-                while (i < inner_w) : (i += 1) try ctxWrite(ctx, "\xE2\x94\x80"); // ─
-                try ctxWrite(ctx, "\xE2\x94\x90\n"); // ┐
+                const border = frameCharset(f.border.charset);
+                const top_left = border.top_left;
+                const top_right = border.top_right;
+                const horizontal = border.horizontal;
+                const vertical = border.vertical;
+                const bottom_left = border.bottom_left;
+                const bottom_right = border.bottom_right;
+                const saved = ctx.style;
+                ctx.style = mergeStyles(ctx.style, .{ .fg = f.border.fg, .fg_palette = f.border.fg_palette });
+                try frameWrite(ctx, ctx.origin_x, ctx.origin_y, top_left);
+                var h: usize = 0;
+                while (h < inner_w) : (h += 1) try frameWrite(ctx, ctx.origin_x + @as(i32, @intCast(h + 1)), ctx.origin_y, horizontal);
+                try frameWrite(ctx, ctx.origin_x + @as(i32, @intCast(inner_w + 1)), ctx.origin_y, top_right);
+                if (ctx.drawer == null) try ctxWrite(ctx, "\n");
 
                 // middle rows: wrap known multi-line children with borders per line
                 switch (f.child.*) {
@@ -454,37 +661,76 @@ pub const Node = union(enum) {
                         const w: usize = if (p.width == 0) 1 else p.width;
                         var idx: usize = 0;
                         while (idx < p.content.len) {
-                            try ctxWrite(ctx, "\xE2\x94\x82"); // │
+                            try frameWrite(ctx, ctx.origin_x, ctx.origin_y + 1 + @as(i32, @intCast(idx / w)), vertical);
                             const rem = p.content.len - idx;
                             const take = if (rem < w) rem else w;
-                            try ctxWrite(ctx, p.content[idx .. idx + take]);
+                            if (ctx.drawer != null) {
+                                var col: usize = 0;
+                                while (col < take) : (col += 1) try frameWrite(ctx, ctx.origin_x + 1 + @as(i32, @intCast(col)), ctx.origin_y + 1 + @as(i32, @intCast(idx / w)), p.content[idx + col .. idx + col + 1]);
+                            } else {
+                                try ctxWrite(ctx, p.content[idx .. idx + take]);
+                            }
                             var pad: usize = inner_w - take;
                             while (pad > 0) : (pad -= 1) try ctxWrite(ctx, " ");
-                            try ctxWrite(ctx, "\xE2\x94\x82\n"); // │
+                            try frameWrite(ctx, ctx.origin_x + @as(i32, @intCast(inner_w + 1)), ctx.origin_y + 1 + @as(i32, @intCast(idx / w)), vertical);
+                            if (ctx.drawer == null) try ctxWrite(ctx, "\n");
                             idx += take;
                         }
                         if (p.content.len == 0) {
                             // empty content still renders one empty line inside the frame
-                            try ctxWrite(ctx, "\xE2\x94\x82");
+                            try frameWrite(ctx, ctx.origin_x, ctx.origin_y + 1, vertical);
                             var j: usize = 0;
                             while (j < inner_w) : (j += 1) try ctxWrite(ctx, " ");
-                            try ctxWrite(ctx, "\xE2\x94\x82\n");
+                            try frameWrite(ctx, ctx.origin_x + @as(i32, @intCast(inner_w + 1)), ctx.origin_y + 1, vertical);
+                            if (ctx.drawer == null) try ctxWrite(ctx, "\n");
                         }
                     },
                     else => {
                         // default: single row with child rendering
-                        try ctxWrite(ctx, "\xE2\x94\x82"); // │
-                        try f.child.*.render(ctx);
+                        try frameWrite(ctx, ctx.origin_x, ctx.origin_y + 1, vertical);
+                        var child_ctx = ctx.*;
+                        child_ctx.origin_x += 1;
+                        child_ctx.origin_y += 1;
+                        try f.child.*.render(&child_ctx);
                         // pad to inner width is not attempted here; assume child fits
-                        try ctxWrite(ctx, "\xE2\x94\x82\n"); // │
+                        try frameWrite(ctx, ctx.origin_x + @as(i32, @intCast(inner_w + 1)), ctx.origin_y + 1, vertical);
+                        if (ctx.drawer == null) try ctxWrite(ctx, "\n");
                     },
                 }
 
                 // bottom border: └───┘
-                try ctxWrite(ctx, "\xE2\x94\x94"); // └
-                i = 0;
-                while (i < inner_w) : (i += 1) try ctxWrite(ctx, "\xE2\x94\x80"); // ─
-                try ctxWrite(ctx, "\xE2\x94\x98\n"); // ┘
+                try frameWrite(ctx, ctx.origin_x, ctx.origin_y + 1 + @as(i32, @intCast(req.min_height)), bottom_left);
+                var bottom_col: usize = 0;
+                while (bottom_col < inner_w) : (bottom_col += 1) try frameWrite(ctx, ctx.origin_x + 1 + @as(i32, @intCast(bottom_col)), ctx.origin_y + 1 + @as(i32, @intCast(req.min_height)), horizontal);
+                try frameWrite(ctx, ctx.origin_x + @as(i32, @intCast(inner_w + 1)), ctx.origin_y + 1 + @as(i32, @intCast(req.min_height)), bottom_right);
+                if (ctx.drawer == null) try ctxWrite(ctx, "\n");
+                ctx.style = saved;
+                if (ctx.drawer == null) {
+                    try applyAnsiStyle(ctx, saved);
+                }
+            },
+            .style => |s| {
+                const prev = ctx.style;
+                const next = mergeStyles(prev, s.attrs);
+                const prev_link = ctx.current_hyperlink;
+                ctx.current_hyperlink = next.hyperlink;
+                if (!stylesEqual(prev, next) and ctx.drawer == null) {
+                    try applyAnsiStyle(ctx, next);
+                }
+                ctx.style = next;
+                errdefer {
+                    ctx.style = prev;
+                    ctx.current_hyperlink = prev_link;
+                    if (!stylesEqual(prev, next) and ctx.drawer == null) {
+                        applyAnsiStyle(ctx, prev) catch {};
+                    }
+                }
+                try s.child.*.render(ctx);
+                ctx.style = prev;
+                ctx.current_hyperlink = prev_link;
+                if (!stylesEqual(prev, next) and ctx.drawer == null) {
+                    try applyAnsiStyle(ctx, prev);
+                }
             },
             .size => |s| {
                 // Size decorator does not change rendering; it only influences requirements.
@@ -560,14 +806,6 @@ pub const Node = union(enum) {
             .cursor => |c| {
                 if (c.child) |ch| try ch.*.render(ctx);
             },
-            .styled => |s| {
-                var child_ctx = ctx.*;
-                if (s.style.fg) |fg| child_ctx.current_style.fg = fg;
-                if (s.style.bg) |bg| child_ctx.current_style.bg = bg;
-                if (s.style.style_flags != 0) child_ctx.current_style.style |= s.style.style_flags;
-                child_ctx.current_hyperlink = s.style.hyperlink orelse child_ctx.current_hyperlink;
-                try s.child.*.render(&child_ctx);
-            },
             .table => |t| try t.render(ctx),
             .automerge => |a| try a.render(ctx),
             .scroll => |s| try s.render(ctx),
@@ -606,6 +844,13 @@ pub const Node = union(enum) {
                 if (selection.has_focus) {
                     selection.setAccessibility(.container, "Frame", "", selection.value, selection.state);
                 }
+            },
+            .gradient_text => |g| {
+                selection.setAccessibility(.text, "Gradient Text", "", g.text, "");
+                selection.setCursor(0, 0);
+            },
+            .style => |s| {
+                s.child.*.select(selection);
             },
             .size => |s| {
                 s.child.*.select(selection);
@@ -653,9 +898,6 @@ pub const Node = union(enum) {
                     selection.clear();
                 }
             },
-            .styled => |s| {
-                s.child.*.select(selection);
-            },
             .window => |w| {
                 selection.setAccessibility(.container, w.title, "Window frame", "", "");
             },
@@ -678,6 +920,11 @@ pub const Node = union(enum) {
             .canvas => |c| {
                 _ = c;
                 selection.setAccessibility(.text, "Canvas", "Custom drawing", "", "");
+                selection.setCursor(0, 0);
+            },
+            .canvas_animation => |anim| {
+                _ = anim;
+                selection.setAccessibility(.text, "Canvas", "Animated drawing", "", "");
                 selection.setCursor(0, 0);
             },
             .table => |t| {
@@ -713,6 +960,8 @@ pub const Node = union(enum) {
         return switch (self) {
             .text => |text_node| text_node.content,
             .frame => |f| try f.child.*.getSelectedContent(allocator),
+            .gradient_text => |g| try allocator.dupe(u8, g.text),
+            .style => |s| try s.child.*.getSelectedContent(allocator),
             .size => |s| try s.child.*.getSelectedContent(allocator),
             .focus => |fx| try fx.child.*.getSelectedContent(allocator),
             .flexbox => |fb| blkSel: {
@@ -730,16 +979,6 @@ pub const Node = union(enum) {
                 if (c.child) |ch| break :blkSel3 try ch.*.getSelectedContent(allocator);
                 break :blkSel3 "";
             },
-            .styled => |s| try s.child.*.getSelectedContent(allocator), // New: Styled node
-            .automerge => |a| blkAuto: {
-                if (a.children.len == 0) break :blkAuto "";
-                break :blkAuto try a.children[0].getSelectedContent(allocator);
-            },
-            .scroll => |s| blkScroll: {
-                if (s.child) |child| break :blkScroll try child.*.getSelectedContent(allocator);
-                break :blkScroll "";
-            },
-            .center => |c| try c.child.*.getSelectedContent(allocator),
             .table => |t| blkTable: {
                 if (t.selected_row) |row_idx| {
                     if (row_idx < t.rows.len) {
@@ -752,21 +991,19 @@ pub const Node = union(enum) {
                 }
                 break :blkTable "";
             },
+            .automerge => |a| blkAuto: {
+                if (a.children.len == 0) break :blkAuto "";
+                break :blkAuto try a.children[0].getSelectedContent(allocator);
+            },
+            .scroll => |s| blkScroll: {
+                if (s.child) |child| break :blkScroll try child.*.getSelectedContent(allocator);
+                break :blkScroll "";
+            },
+            .center => |c| try c.child.*.getSelectedContent(allocator),
+            .canvas_animation => "",
             else => "",
         };
     }
-};
-
-pub const StyleOverride = struct {
-    fg: ?u24 = null,
-    bg: ?u24 = null,
-    style_flags: u8 = 0,
-    hyperlink: ?[]const u8 = null,
-};
-
-pub const Styled = struct {
-    child: *const Node,
-    style: StyleOverride = .{},
 };
 
 pub const Text = struct {
@@ -780,18 +1017,151 @@ pub const CustomRenderer = struct {
 
 pub const Orientation = enum { vertical, horizontal };
 
+pub const SeparatorStyle = enum {
+    plain,
+    dashed,
+    double,
+    dotted,
+    heavy,
+};
+
 pub const Separator = struct {
     orientation: Orientation = .horizontal,
+    style: SeparatorStyle = .plain,
+    length: usize = 0,
 };
+
+const SeparatorGlyphs = struct {
+    horizontal: []const u8,
+    vertical: []const u8,
+};
+
+fn separatorRequirement(sep: Separator) Requirement {
+    const span = if (sep.length > 0) sep.length else 1;
+    return switch (sep.orientation) {
+        .horizontal => Requirement{ .min_width = span, .min_height = 1 },
+        .vertical => Requirement{ .min_width = 1, .min_height = span },
+    };
+}
+
+fn separatorGlyphs(style: SeparatorStyle) SeparatorGlyphs {
+    return switch (style) {
+        .plain => .{ .horizontal = "\xE2\x94\x80", .vertical = "\xE2\x94\x82" },
+        .dashed => .{ .horizontal = "- ", .vertical = "|" },
+        .double => .{ .horizontal = "\xE2\x95\x90", .vertical = "\xE2\x95\x91" },
+        .dotted => .{ .horizontal = ". ", .vertical = ":" },
+        .heavy => .{ .horizontal = "\xE2\x94\x81", .vertical = "\xE2\x94\x83" },
+    };
+}
+
+fn renderSeparator(sep: Separator, ctx: *RenderContext) !void {
+    const glyphs = separatorGlyphs(sep.style);
+    const span = if (sep.length > 0) sep.length else 1;
+    switch (sep.orientation) {
+        .horizontal => {
+            var written: usize = 0;
+            while (written < span) {
+                const remaining = span - written;
+                const chunk = if (glyphs.horizontal.len <= remaining) glyphs.horizontal else glyphs.horizontal[0..remaining];
+                try ctxWrite(ctx, chunk);
+                written += chunk.len;
+            }
+            try ctxWrite(ctx, "\n");
+        },
+        .vertical => {
+            var i: usize = 0;
+            while (i < span) : (i += 1) {
+                try ctxWrite(ctx, glyphs.vertical);
+                try ctxWrite(ctx, "\n");
+            }
+        },
+    }
+}
 
 pub const WindowFrame = struct {
     title: []const u8 = "",
 };
 
+pub const GaugeOrientation = enum { horizontal, vertical };
+
 pub const Gauge = struct {
     fraction: f32 = 0.0,
     width: usize = 10,
+    orientation: GaugeOrientation = .horizontal,
+    fill_char: u8 = '#',
+    empty_char: u8 = '.',
+    show_percentage: bool = false,
+    label: []const u8 = "",
 };
+
+fn renderHorizontalGauge(g: Gauge, ctx: *RenderContext) !void {
+    const total = if (g.width < 3) 3 else g.width;
+    const inner: usize = total - 2;
+    const clamped = std.math.clamp(g.fraction, 0.0, 1.0);
+    const filled: usize = @intFromFloat(@floor(@as(f32, @floatFromInt(inner)) * clamped + 0.0001));
+    const empty: usize = inner - filled;
+
+    var buf = std.array_list.Managed(u8).init(std.heap.page_allocator);
+    defer buf.deinit();
+    try buf.appendSlice("[");
+    var i: usize = 0;
+    while (i < filled) : (i += 1) try buf.append(g.fill_char);
+    i = 0;
+    while (i < empty) : (i += 1) try buf.append(g.empty_char);
+    try buf.appendSlice("]");
+
+    if (g.show_percentage) {
+        var tmp: [16]u8 = undefined;
+        const percent: usize = @intFromFloat(@round(clamped * 100.0));
+        const pct_text = try std.fmt.bufPrint(&tmp, " {d:0>3}%", .{percent});
+        try buf.appendSlice(pct_text);
+    }
+    if (g.label.len > 0) {
+        try buf.appendSlice(" ");
+        try buf.appendSlice(g.label);
+    }
+
+    if (ctx.drawer != null) {
+        try ctxDraw(ctx, ctx.origin_x, ctx.origin_y, buf.items);
+    } else {
+        try ctxWrite(ctx, buf.items);
+    }
+}
+
+fn renderVerticalGauge(g: Gauge, ctx: *RenderContext) !void {
+    const total = if (g.width < 3) 3 else g.width;
+    const clamped = std.math.clamp(g.fraction, 0.0, 1.0);
+    const filled: usize = @intFromFloat(@floor(@as(f32, @floatFromInt(total)) * clamped + 0.0001));
+
+    var buf = std.array_list.Managed(u8).init(std.heap.page_allocator);
+    defer buf.deinit();
+
+    var row: usize = total;
+    while (row > 0) : (row -= 1) {
+        const ch = if (row <= filled) g.fill_char else g.empty_char;
+        try buf.appendSlice("[");
+        try buf.append(ch);
+        try buf.appendSlice("]\n");
+    }
+
+    if (g.show_percentage) {
+        var tmp: [16]u8 = undefined;
+        const percent: usize = @intFromFloat(@round(clamped * 100.0));
+        const pct_text = try std.fmt.bufPrint(&tmp, "{d:0>3}%", .{percent});
+        try buf.appendSlice(pct_text);
+        try buf.appendSlice("\n");
+    }
+    if (g.label.len > 0) {
+        try buf.appendSlice(g.label);
+        try buf.appendSlice("\n");
+    }
+
+    if (ctx.drawer != null) {
+        try ctxDraw(ctx, ctx.origin_x, ctx.origin_y, buf.items);
+    } else {
+        try ctxWrite(ctx, buf.items);
+    }
+}
 
 pub const Spinner = struct {
     frames: []const []const u8 = &[_][]const u8{ "-", "\\", "|", "/" },
@@ -880,7 +1250,7 @@ pub const Graph = struct {
                 const ch = if (draw_fill) self.fill_char else self.empty_char;
                 if (ctx.drawer != null) {
                     const cell = [1]u8{ch};
-                    try ctxDraw(ctx, ctx.origin_x + @as(i32, @intCast(col)), ctx.origin_y + @as(i32, @intCast(row)), cell[0..], ctx.current_style);
+                    try ctxDraw(ctx, ctx.origin_x + @as(i32, @intCast(col)), ctx.origin_y + @as(i32, @intCast(row)), cell[0..]);
                 } else {
                     const cell = [1]u8{ch};
                     try ctxWrite(ctx, cell[0..]);
@@ -889,6 +1259,35 @@ pub const Graph = struct {
             if (ctx.drawer == null) {
                 try ctxWrite(ctx, "\n");
             }
+        }
+    }
+};
+
+pub const GradientText = struct {
+    text: []const u8,
+    start_color: u24,
+    end_color: u24,
+
+    fn render(self: GradientText, ctx: *RenderContext) !void {
+        if (self.text.len == 0) return;
+        const saved = ctx.style;
+        const total = self.text.len;
+        var idx: usize = 0;
+        while (idx < total) : (idx += 1) {
+            const ratio = if (total <= 1) 0 else @as(f32, @floatFromInt(idx)) / @as(f32, @floatFromInt(total - 1));
+            const blended = blendColor(self.start_color, self.end_color, ratio);
+            const next_style = mergeStyles(saved, .{ .fg = blended });
+            ctx.style = next_style;
+            if (ctx.drawer != null) {
+                try ctxDraw(ctx, ctx.origin_x + @as(i32, @intCast(idx)), ctx.origin_y, self.text[idx .. idx + 1]);
+            } else {
+                try applyAnsiStyle(ctx, next_style);
+                try ctxWrite(ctx, self.text[idx .. idx + 1]);
+            }
+        }
+        ctx.style = saved;
+        if (ctx.drawer == null) {
+            try applyAnsiStyle(ctx, saved);
         }
     }
 };
@@ -921,7 +1320,7 @@ pub const Canvas = struct {
                 while (col < dims.width) : (col += 1) {
                     const ch = if (col < row_data.len) row_data[col] else self.fill_char;
                     const cell = [1]u8{ch};
-                    try ctxDraw(ctx, ctx.origin_x + @as(i32, @intCast(col)), ctx.origin_y + @as(i32, @intCast(row_idx)), cell[0..], ctx.current_style);
+                    try ctxDraw(ctx, ctx.origin_x + @as(i32, @intCast(col)), ctx.origin_y + @as(i32, @intCast(row_idx)), cell[0..]);
                 }
             } else {
                 if (dims.width == 0) {
@@ -937,6 +1336,21 @@ pub const Canvas = struct {
                 try ctxWrite(ctx, "\n");
             }
         }
+    }
+};
+
+pub const CanvasAnimation = struct {
+    frames: []const Canvas = &[_]Canvas{},
+    index: usize = 0,
+
+    pub fn current(self: CanvasAnimation) Canvas {
+        if (self.frames.len == 0) return Canvas{};
+        return self.frames[self.index % self.frames.len];
+    }
+
+    pub fn advance(self: *CanvasAnimation) void {
+        if (self.frames.len == 0) return;
+        self.index +%= 1;
     }
 };
 
@@ -1257,8 +1671,28 @@ pub const Center = struct {
     }
 };
 
+pub const FrameBorderStyle = enum {
+    single,
+    double,
+    rounded,
+    heavy,
+    ascii,
+};
+
+pub const FrameBorder = struct {
+    charset: FrameBorderStyle = .single,
+    fg: ?u24 = null,
+    fg_palette: ?PaletteColor = null,
+};
+
 pub const Frame = struct {
     child: *const Node,
+    border: FrameBorder = .{},
+};
+
+pub const StyleDecorator = struct {
+    child: *const Node,
+    attrs: StyleAttributes = .{},
 };
 
 pub const Size = struct {
@@ -1279,50 +1713,31 @@ pub const Focus = struct {
 
 pub const FlexDirection = enum { row, column };
 
-pub const Axis = enum { horizontal, vertical, both };
-
-pub const Constraint = enum {
-    none,
-    equal,
-    min_content,
-    max_content,
-};
-
-pub const FlexboxConfig = struct {
-    direction: ?FlexDirection = null,
-    gap: ?usize = null,
-    axis: Axis = .both,
-    constraint: Constraint = .none,
-};
-
 pub const Flexbox = struct {
     children: []const Node = &[_]Node{},
     direction: FlexDirection = .row,
     gap: usize = 0,
     box: Box = .{},
     owned_children: ?[]Node = null,
-    config: FlexboxConfig = .{},
 
     pub fn layout(self: Flexbox, allocator: std.mem.Allocator) ![]Box {
         const boxes = try allocator.alloc(Box, self.children.len);
         var x: i32 = self.box.origin_x;
         var y: i32 = self.box.origin_y;
         var i: usize = 0;
-        const effective_gap = self.config.gap orelse self.gap;
-        const dir = self.config.direction orelse self.direction;
-        switch (dir) {
+        switch (self.direction) {
             .row => {
                 while (i < self.children.len) : (i += 1) {
                     const cr = self.children[i].computeRequirement();
                     boxes[i] = .{ .origin_x = x, .origin_y = y, .width = @intCast(cr.min_width), .height = @intCast(@min(@as(usize, self.box.height), cr.min_height)) };
-                    x += @as(i32, @intCast(cr.min_width + effective_gap));
+                    x += @as(i32, @intCast(cr.min_width + self.gap));
                 }
             },
             .column => {
                 while (i < self.children.len) : (i += 1) {
                     const cr = self.children[i].computeRequirement();
                     boxes[i] = .{ .origin_x = x, .origin_y = y, .width = @intCast(@min(@as(usize, self.box.width), cr.min_width)), .height = @intCast(cr.min_height) };
-                    y += @as(i32, @intCast(cr.min_height + effective_gap));
+                    y += @as(i32, @intCast(cr.min_height + self.gap));
                 }
             },
         }
@@ -1566,10 +1981,55 @@ test "graph render outputs ascii sparkline" {
             try buf.appendSlice(data);
         }
     };
-    var ctx: RenderContext = .{ .sink = .{ .user_data = @as(*anyopaque, @ptrCast(&managed)), .writeAll = Adapter.write } };
-    const node = Node{ .graph = .{ .values = &[_]f32{ 0.0, 0.5, 1.0 }, .height = 2, .empty_char = '.', .fill_char = '#' } };
+    var ctx: RenderContext = .{
+        .sink = .{ .user_data = @as(*anyopaque, @ptrCast(&managed)), .writeAll = Adapter.write },
+    };
+    const node = Node{ .graph = .{
+        .values = &[_]f32{ 0.0, 0.5, 1.0 },
+        .height = 2,
+        .empty_char = '.',
+        .fill_char = '#',
+    } };
     try node.render(&ctx);
     try std.testing.expectEqualStrings("..#\n.##\n", managed.items);
+}
+
+test "gradient text requirement uses length" {
+    const node = Node{ .gradient_text = .{
+        .text = "grad",
+        .start_color = 0x000000,
+        .end_color = 0xFFFFFF,
+    } };
+    const req = node.computeRequirement();
+    try std.testing.expectEqual(@as(usize, 4), req.min_width);
+    try std.testing.expectEqual(@as(usize, 1), req.min_height);
+}
+
+test "gradient text render emits ansi color ramp" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const alloc = arena.allocator();
+
+    const node = Node{ .gradient_text = .{
+        .text = "ab",
+        .start_color = 0xFF0000,
+        .end_color = 0x0000FF,
+    } };
+
+    var buffer = std.array_list.Managed(u8).init(alloc);
+    defer buffer.deinit();
+    const SinkWriter = struct {
+        fn write(user_data: *anyopaque, data: []const u8) anyerror!void {
+            const buf = @as(*std.array_list.Managed(u8), @ptrCast(@alignCast(user_data)));
+            try buf.appendSlice(data);
+        }
+    };
+    var ctx = RenderContext{
+        .sink = .{ .user_data = @as(*anyopaque, @ptrCast(&buffer)), .writeAll = SinkWriter.write },
+    };
+    try node.render(&ctx);
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "\x1b[38;2;255;0;0m") != null);
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "\x1b[38;2;0;0;255m") != null);
 }
 
 test "canvas requirement tracks widest row" {
@@ -1588,10 +2048,73 @@ test "canvas render pads missing cells" {
             try buf.appendSlice(data);
         }
     };
-    var ctx: RenderContext = .{ .sink = .{ .user_data = @as(*anyopaque, @ptrCast(&managed)), .writeAll = Adapter.write } };
-    const node = Node{ .canvas = .{ .rows = &[_][]const u8{ "xo", "ox" }, .width = 3, .height = 3, .fill_char = '.' } };
+    var ctx: RenderContext = .{
+        .sink = .{ .user_data = @as(*anyopaque, @ptrCast(&managed)), .writeAll = Adapter.write },
+    };
+    const node = Node{ .canvas = .{
+        .rows = &[_][]const u8{ "xo", "ox" },
+        .width = 3,
+        .height = 3,
+        .fill_char = '.',
+    } };
     try node.render(&ctx);
     try std.testing.expectEqualStrings("xo.\nox.\n...\n", managed.items);
+}
+
+test "style decorator emits ansi sequences when rendering" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const alloc = arena.allocator();
+
+    const child_ptr = try alloc.create(Node);
+    child_ptr.* = Node{ .text = .{ .content = "hi" } };
+    const styled = Node{
+        .style = .{ .child = child_ptr, .attrs = .{ .bold = true, .fg = 0x112233 } },
+    };
+
+    var buffer = std.array_list.Managed(u8).init(alloc);
+    defer buffer.deinit();
+    const SinkWriter = struct {
+        fn write(user_data: *anyopaque, data: []const u8) anyerror!void {
+            const buf = @as(*std.array_list.Managed(u8), @ptrCast(@alignCast(user_data)));
+            try buf.appendSlice(data);
+        }
+    };
+
+    var ctx = RenderContext{
+        .sink = .{ .user_data = @as(*anyopaque, @ptrCast(&buffer)), .writeAll = SinkWriter.write },
+    };
+    try styled.render(&ctx);
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "\x1b[1m") != null);
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "\x1b[38;2;17;34;51m") != null);
+    try std.testing.expect(std.mem.endsWith(u8, buffer.items, "\x1b[0m"));
+}
+
+test "style decorator supports palette colors" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const alloc = arena.allocator();
+
+    const child_ptr = try alloc.create(Node);
+    child_ptr.* = Node{ .text = .{ .content = "pal" } };
+    const styled = Node{
+        .style = .{ .child = child_ptr, .attrs = .{ .fg_palette = .bright_red } },
+    };
+
+    var buffer = std.array_list.Managed(u8).init(alloc);
+    defer buffer.deinit();
+    const SinkWriter = struct {
+        fn write(user_data: *anyopaque, data: []const u8) anyerror!void {
+            const buf = @as(*std.array_list.Managed(u8), @ptrCast(@alignCast(user_data)));
+            try buf.appendSlice(data);
+        }
+    };
+
+    var ctx = RenderContext{
+        .sink = .{ .user_data = @as(*anyopaque, @ptrCast(&buffer)), .writeAll = SinkWriter.write },
+    };
+    try styled.render(&ctx);
+    try std.testing.expect(std.mem.indexOf(u8, buffer.items, "\x1b[38;2;255;85;85m") != null);
 }
 
 test "frame requirement adds borders" {
@@ -1611,7 +2134,9 @@ test "frame renders paragraph with per-line borders and padding" {
             try buf.appendSlice(data);
         }
     };
-    var ctx: RenderContext = .{ .sink = .{ .user_data = @as(*anyopaque, @ptrCast(&managed)), .writeAll = Adapter.write } };
+    var ctx: RenderContext = .{
+        .sink = .{ .user_data = @as(*anyopaque, @ptrCast(&managed)), .writeAll = Adapter.write },
+    };
 
     const para = Node{ .paragraph = .{ .content = "hello", .width = 4 } };
     const n = Node{ .frame = .{ .child = &para } };
@@ -1621,8 +2146,65 @@ test "frame renders paragraph with per-line borders and padding" {
         "\xE2\x94\x8C\xE2\x94\x80\xE2\x94\x80\xE2\x94\x80\xE2\x94\x80\xE2\x94\x90\n" ++
         "\xE2\x94\x82hell\xE2\x94\x82\n" ++
         "\xE2\x94\x82o   \xE2\x94\x82\n" ++
-        "\xE2\x94\x94\xE2\x94\x80\xE2\x94\x80\xE2\x94\x80\xE2\x94\x80\xE2\x94\x98\n";
+        "\xE2\x94\x94\xE2\x94\x80\xE2\x94\x80\xE2\x94\x80\xE2\x94\x80\xE2\x94\x98\n" ++
+        "\x1b[0m";
     try std.testing.expectEqualStrings(expected, managed.items);
+}
+
+test "canvas animation requirement tracks active frame" {
+    const frame_a = Canvas{ .rows = &[_][]const u8{"aa"} };
+    const frame_b = Canvas{ .rows = &[_][]const u8{ "long", "row" } };
+    const n = Node{ .canvas_animation = .{ .frames = &[_]Canvas{ frame_a, frame_b }, .index = 1 } };
+    const req = n.computeRequirement();
+    try std.testing.expectEqual(@as(usize, 4), req.min_width);
+    try std.testing.expectEqual(@as(usize, 2), req.min_height);
+}
+
+test "canvas animation advances through frames" {
+    var managed = std.array_list.Managed(u8).init(std.testing.allocator);
+    defer managed.deinit();
+    const Adapter = struct {
+        fn write(user_data: *anyopaque, data: []const u8) anyerror!void {
+            const buf = @as(*std.array_list.Managed(u8), @ptrCast(@alignCast(user_data)));
+            try buf.appendSlice(data);
+        }
+    };
+
+    const frame_a = Canvas{ .rows = &[_][]const u8{"A"} };
+    const frame_b = Canvas{ .rows = &[_][]const u8{"B"} };
+    var node_anim = Node{ .canvas_animation = .{ .frames = &[_]Canvas{ frame_a, frame_b } } };
+    var ctx = RenderContext{
+        .sink = .{ .user_data = @as(*anyopaque, @ptrCast(&managed)), .writeAll = Adapter.write },
+    };
+
+    try node_anim.render(&ctx);
+    try std.testing.expect(std.mem.indexOf(u8, managed.items, "A") != null);
+    managed.items.len = 0;
+    switch (node_anim) {
+        .canvas_animation => |*anim| anim.advance(),
+        else => unreachable,
+    }
+    try node_anim.render(&ctx);
+    try std.testing.expect(std.mem.indexOf(u8, managed.items, "B") != null);
+}
+
+test "frame supports double border charset" {
+    var managed = std.array_list.Managed(u8).init(std.testing.allocator);
+    defer managed.deinit();
+    const Adapter = struct {
+        fn write(user_data: *anyopaque, data: []const u8) anyerror!void {
+            const buf = @as(*std.array_list.Managed(u8), @ptrCast(@alignCast(user_data)));
+            try buf.appendSlice(data);
+        }
+    };
+    var ctx: RenderContext = .{
+        .sink = .{ .user_data = @as(*anyopaque, @ptrCast(&managed)), .writeAll = Adapter.write },
+    };
+
+    const child = Node{ .text = .{ .content = "x" } };
+    const node = Node{ .frame = .{ .child = &child, .border = .{ .charset = .double } } };
+    try node.render(&ctx);
+    try std.testing.expect(std.mem.indexOf(u8, managed.items, "\xE2\x95\x94") != null); // double top-left
 }
 
 test "size requirement is at least given dims" {
@@ -1656,14 +2238,28 @@ test "focus decorator sets requirement focus" {
 }
 
 test "flexbox row aggregates widths plus gap" {
-    const n = Node{ .flexbox = .{ .direction = .row, .gap = 1, .children = &[_]Node{ .{ .text = .{ .content = "ab" } }, .{ .text = .{ .content = "tool" } } } } };
+    const n = Node{ .flexbox = .{
+        .direction = .row,
+        .gap = 1,
+        .children = &[_]Node{
+            .{ .text = .{ .content = "ab" } },
+            .{ .text = .{ .content = "tool" } },
+        },
+    } };
     const r = n.computeRequirement();
     try std.testing.expectEqual(@as(usize, 7), r.min_width); // 2 + 1 + 4
     try std.testing.expectEqual(@as(usize, 1), r.min_height);
 }
 
 test "flexbox column aggregates heights plus gap" {
-    const n = Node{ .flexbox = .{ .direction = .column, .gap = 2, .children = &[_]Node{ .{ .text = .{ .content = "ab" } }, .{ .text = .{ .content = "tool" } } } } };
+    const n = Node{ .flexbox = .{
+        .direction = .column,
+        .gap = 2,
+        .children = &[_]Node{
+            .{ .text = .{ .content = "ab" } },
+            .{ .text = .{ .content = "tool" } },
+        },
+    } };
     const r = n.computeRequirement();
     try std.testing.expectEqual(@as(usize, 4), r.min_width);
     try std.testing.expectEqual(@as(usize, 4), r.min_height); // 1 + 2 + 1
@@ -1764,7 +2360,9 @@ test "selection container finds focused child" {
     const text_node = Node{ .text = .{ .content = "focused" } };
     const focused_child = Node{ .cursor = .{ .child = &text_node, .index = 0 } };
     const other_child = Node{ .text = .{ .content = "other" } };
-    var container_node = Node{ .container = .{ .children = &[_]Node{ other_child, focused_child } } };
+    var container_node = Node{ .container = .{
+        .children = &[_]Node{ other_child, focused_child },
+    } };
     var sel = Selection.init();
     container_node.select(&sel);
     // Container should find and return the focused child's selection
@@ -1794,7 +2392,13 @@ test "dbox setBox updates own box" {
 }
 
 test "container vertical layout assigns stacked boxes" {
-    var node = Node{ .container = .{ .orientation = .vertical, .children = &[_]Node{ .{ .text = .{ .content = "aa" } }, .{ .text = .{ .content = "bbbb" } } } } };
+    var node = Node{ .container = .{
+        .orientation = .vertical,
+        .children = &[_]Node{
+            .{ .text = .{ .content = "aa" } },
+            .{ .text = .{ .content = "bbbb" } },
+        },
+    } };
     node.setBox(.{ .origin_x = 0, .origin_y = 0, .width = 10, .height = 5 });
     const cont = switch (node) {
         .container => |c| c,
@@ -1811,7 +2415,14 @@ test "container vertical layout assigns stacked boxes" {
 }
 
 test "flexbox row layout assigns consecutive boxes with gaps" {
-    var node = Node{ .flexbox = .{ .direction = .row, .gap = 1, .children = &[_]Node{ .{ .text = .{ .content = "a" } }, .{ .text = .{ .content = "bc" } } } } };
+    var node = Node{ .flexbox = .{
+        .direction = .row,
+        .gap = 1,
+        .children = &[_]Node{
+            .{ .text = .{ .content = "a" } },
+            .{ .text = .{ .content = "bc" } },
+        },
+    } };
     node.setBox(.{ .origin_x = 0, .origin_y = 0, .width = 10, .height = 2 });
     const fb = switch (node) {
         .flexbox => |f| f,
@@ -1826,7 +2437,13 @@ test "flexbox row layout assigns consecutive boxes with gaps" {
 }
 
 test "container applyLayout sets owned child boxes" {
-    var node = Node{ .container = .{ .orientation = .horizontal, .children = &[_]Node{ .{ .text = .{ .content = "aaa" } }, .{ .text = .{ .content = "bb" } } } } };
+    var node = Node{ .container = .{
+        .orientation = .horizontal,
+        .children = &[_]Node{
+            .{ .text = .{ .content = "aaa" } },
+            .{ .text = .{ .content = "bb" } },
+        },
+    } };
     node.setBox(.{ .origin_x = 0, .origin_y = 0, .width = 10, .height = 2 });
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
@@ -1840,14 +2457,26 @@ test "container applyLayout sets owned child boxes" {
 }
 pub const Drawer = struct {
     user_data: *anyopaque,
-    drawText: *const fn (user_data: *anyopaque, x: i32, y: i32, text: []const u8, style: image.Pixel) anyerror!void,
+    drawText: *const fn (
+        user_data: *anyopaque,
+        x: i32,
+        y: i32,
+        text: []const u8,
+        style: StyleAttributes,
+    ) anyerror!void,
 };
 
-fn ctxDraw(ctx: *RenderContext, x: i32, y: i32, text: []const u8, style: image.Pixel) !void {
+fn ctxDraw(ctx: *RenderContext, x: i32, y: i32, text: []const u8) !void {
     if (ctx.drawer) |d| {
-        try d.drawText(d.user_data, x, y, text, style);
+        try d.drawText(d.user_data, x, y, text, ctx.style);
     } else {
-        // TODO: handle style with ANSI escape codes
+        try ctxWrite(ctx, text);
+    }
+}
+fn frameWrite(ctx: *RenderContext, x: i32, y: i32, text: []const u8) !void {
+    if (ctx.drawer != null) {
+        try ctxDraw(ctx, x, y, text);
+    } else {
         try ctxWrite(ctx, text);
     }
 }

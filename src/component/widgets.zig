@@ -3,6 +3,17 @@ const base = @import("base.zig");
 const options = @import("options.zig");
 const events = @import("events.zig");
 
+const ButtonState = struct {
+    label: []const u8,
+    visual: options.ButtonVisual,
+    frame: options.ButtonFrameStyle,
+    is_default: bool,
+    animated: bool,
+    underline: ?options.UnderlineOption,
+    animation: ?options.AnimatedColorOption,
+    phase: f32 = 0.0,
+};
+
 const CheckboxState = struct { checked: bool };
 const ToggleState = struct { on: bool };
 const TogglePayload = struct {
@@ -17,6 +28,14 @@ const InputState = struct {
     placeholder: []const u8,
     is_password: bool,
     multiline: bool,
+    prefix: []const u8,
+    suffix: []const u8,
+    bordered: bool,
+    placeholder_style: []const u8,
+    visible_lines: usize,
+    cursor: usize = 0,
+    scroll_line: usize = 0,
+    max_length: usize,
 };
 
 const SliderState = struct {
@@ -39,6 +58,7 @@ const DropdownState = struct {
     is_open: bool,
     placeholder: []const u8,
     allocator: std.mem.Allocator,
+    custom_renderer: ?options.DropdownRenderFn = null,
 
     fn ensureSelection(self: *DropdownState) void {
         if (self.selected_index == null and self.items.len > 0) {
@@ -67,6 +87,23 @@ const MenuState = struct {
     highlight_color: u24,
     animation_enabled: bool,
     phase: f32 = 0.0,
+    multi_select: bool,
+    selections: []bool,
+    underline_gallery: bool,
+    custom_renderer: ?options.MenuRenderFn = null,
+};
+
+const TabsState = struct {
+    labels: []const []const u8,
+    selected_index: usize,
+    orientation: options.TabsOrientation,
+};
+
+const ScrollbarState = struct {
+    content_length: usize,
+    viewport_length: usize,
+    position: usize,
+    orientation: options.ScrollbarOrientation,
 };
 
 const SplitState = struct {
@@ -109,17 +146,41 @@ const WindowState = struct {
 
 pub fn button(allocator: std.mem.Allocator, opts: options.ButtonOptions) !base.Component {
     const owned_label = try allocator.dupe(u8, opts.label);
+    const state_ptr = try allocator.create(ButtonState);
+    state_ptr.* = .{
+        .label = owned_label,
+        .visual = opts.visual,
+        .frame = opts.frame,
+        .is_default = opts.is_default,
+        .animated = opts.animated or (opts.animation != null),
+        .underline = opts.underline,
+        .animation = opts.animation,
+    };
+
     const component_ptr = try allocator.create(base.ComponentBase);
     component_ptr.* = base.ComponentBase{
         .text_cache = owned_label,
-        .user_data = null,
+        .user_data = @as(*anyopaque, @ptrCast(state_ptr)),
         .renderFn = buttonRender,
         .eventFn = buttonEvent,
-        .animationFn = null,
+        .animationFn = if (state_ptr.animated) buttonAnimate else null,
         .children = &[_]base.Component{},
         .focus_index = 0,
     };
     return .{ .base = component_ptr };
+}
+
+pub fn buttonStyled(allocator: std.mem.Allocator, label_text: []const u8, visual: options.ButtonVisual) !base.Component {
+    return button(allocator, .{ .label = label_text, .visual = visual });
+}
+
+pub fn buttonAnimated(allocator: std.mem.Allocator, label_text: []const u8, animation: options.AnimatedColorOption) !base.Component {
+    return button(allocator, .{ .label = label_text, .animated = true, .animation = animation });
+}
+
+pub fn buttonInFrame(allocator: std.mem.Allocator, label_text: []const u8, frame_opts: options.FrameOptions) !base.Component {
+    const inner = try button(allocator, .{ .label = label_text, .frame = .inline_frame });
+    return frameDecorator(allocator, inner, frame_opts);
 }
 
 pub fn label(allocator: std.mem.Allocator, text: []const u8) !base.Component {
@@ -154,12 +215,38 @@ pub fn container(allocator: std.mem.Allocator, children: []const base.Component)
 
 fn buttonRender(self: *base.ComponentBase) anyerror!void {
     const stdout = std.fs.File.stdout();
-    if (self.text_cache.len > 0) {
-        try stdout.writeAll("[");
-        try stdout.writeAll(self.text_cache);
-        try stdout.writeAll("]");
-    } else {
-        try stdout.writeAll("[button]");
+    const state = @as(*ButtonState, @ptrCast(@alignCast(self.user_data.?)));
+    switch (state.frame) {
+        .none => {
+            try stdout.writeAll("[");
+            try buttonWriteBody(stdout, state);
+            try stdout.writeAll("]");
+        },
+        .inline_frame => {
+            try stdout.writeAll("< ");
+            try buttonWriteBody(stdout, state);
+            try stdout.writeAll(" >");
+        },
+        .panel => {
+            const width = buttonVisualLength(state) + 2;
+            try stdout.writeAll("+");
+            try writeRepeating(stdout, '=', width);
+            try stdout.writeAll("+\n| ");
+            try buttonWriteBody(stdout, state);
+            try stdout.writeAll(" |\n+");
+            try writeRepeating(stdout, '=', width);
+            try stdout.writeAll("+");
+        },
+    }
+    if (state.underline) |under| {
+        try stdout.writeAll("\n");
+        const underline_char: u8 = if (under.thickness >= 2) '=' else '-';
+        try writeRepeating(stdout, underline_char, buttonVisualLength(state));
+    }
+    if (state.animation) |anim| {
+        var buf: [96]u8 = undefined;
+        const msg = try std.fmt.bufPrint(&buf, "\nanim 0x{X:0>6}->0x{X:0>6} ({d}ms)", .{ anim.start_color, anim.end_color, anim.duration_ms });
+        try stdout.writeAll(msg);
     }
 }
 
@@ -167,6 +254,59 @@ fn buttonEvent(self: *base.ComponentBase, event: events.Event) bool {
     _ = self;
     _ = event;
     return false;
+}
+
+fn buttonAnimate(self: *base.ComponentBase, delta_time: f32) void {
+    const state = @as(*ButtonState, @ptrCast(@alignCast(self.user_data.?)));
+    state.phase += delta_time;
+    if (state.phase >= 1.0) {
+        state.phase -= std.math.floor(state.phase);
+    }
+}
+
+fn buttonWriteBody(file: std.fs.File, state: *ButtonState) !void {
+    if (state.animated) {
+        const marker = if (state.phase > 0.5) "~" else "-";
+        try file.writeAll(marker);
+        try file.writeAll(" ");
+    }
+    const prefix = buttonVisualPrefix(state.visual);
+    const suffix = buttonVisualSuffix(state.visual);
+    if (prefix.len > 0) try file.writeAll(prefix);
+    if (state.is_default) try file.writeAll("*");
+    try file.writeAll(state.label);
+    if (state.is_default) try file.writeAll("*");
+    if (suffix.len > 0) try file.writeAll(suffix);
+    if (state.animated) {
+        try file.writeAll(" ");
+        try file.writeAll(if (state.phase > 0.5) "~" else "-");
+    }
+}
+
+fn buttonVisualLength(state: *ButtonState) usize {
+    var len = state.label.len;
+    if (state.is_default) len += 2;
+    len += buttonVisualPrefix(state.visual).len + buttonVisualSuffix(state.visual).len;
+    if (state.animated) len += 4;
+    return len;
+}
+
+fn buttonVisualPrefix(style: options.ButtonVisual) []const u8 {
+    return switch (style) {
+        .plain => "",
+        .primary => ">> ",
+        .success => "+ ",
+        .danger => "! ",
+    };
+}
+
+fn buttonVisualSuffix(style: options.ButtonVisual) []const u8 {
+    return switch (style) {
+        .plain => "",
+        .primary => " <<",
+        .success => "",
+        .danger => " !",
+    };
 }
 
 fn labelRender(self: *base.ComponentBase) anyerror!void {
@@ -207,6 +347,12 @@ pub fn textInput(allocator: std.mem.Allocator, opts: options.InputOptions) !base
         .placeholder = try allocator.dupe(u8, opts.placeholder),
         .is_password = opts.is_password,
         .multiline = opts.multiline,
+        .prefix = try allocator.dupe(u8, opts.prefix),
+        .suffix = try allocator.dupe(u8, opts.suffix),
+        .bordered = opts.bordered,
+        .placeholder_style = try allocator.dupe(u8, opts.placeholder_style),
+        .visible_lines = if (opts.multiline) @max(opts.visible_lines, 1) else 1,
+        .max_length = opts.max_length,
     };
 
     const component_ptr = try allocator.create(base.ComponentBase);
@@ -222,50 +368,257 @@ pub fn textInput(allocator: std.mem.Allocator, opts: options.InputOptions) !base
     return .{ .base = component_ptr };
 }
 
+pub fn textArea(allocator: std.mem.Allocator, opts: options.InputOptions) !base.Component {
+    var derived = opts;
+    derived.multiline = true;
+    if (derived.visible_lines <= 1) {
+        derived.visible_lines = 4;
+    }
+    if (!derived.bordered) {
+        derived.bordered = true;
+    }
+    return textInput(allocator, derived);
+}
+
 fn inputRender(self: *base.ComponentBase) anyerror!void {
     const stdout = std.fs.File.stdout();
     const st = @as(*InputState, @ptrCast(@alignCast(self.user_data.?)));
-    if (st.buf.items.len == 0 and st.placeholder.len > 0) {
-        try stdout.writeAll(st.placeholder);
-        return;
+    inputEnsureCursorVisible(st);
+    const region = inputVisibleRegion(st);
+
+    if (st.bordered) {
+        try inputRenderBorder(stdout, st, region.slice.len, true);
+        try stdout.writeAll("\n");
     }
-    if (st.is_password) {
-        var i: usize = 0;
-        while (i < st.buf.items.len) : (i += 1) try stdout.writeAll("*");
+    if (st.prefix.len > 0) {
+        try stdout.writeAll(st.prefix);
+    }
+
+    if (region.slice.len == 0 and st.placeholder.len > 0) {
+        if (st.placeholder_style.len > 0) {
+            var buf: [128]u8 = undefined;
+            const text = try std.fmt.bufPrint(&buf, "<{s}:{s}>", .{ st.placeholder_style, st.placeholder });
+            try stdout.writeAll(text);
+        } else {
+            try stdout.writeAll(st.placeholder);
+        }
     } else {
-        try stdout.writeAll(st.buf.items);
+        try inputWriteSlice(stdout, st, region);
     }
+
+    if (st.suffix.len > 0) {
+        try stdout.writeAll(st.suffix);
+    }
+
+    if (st.bordered) {
+        try stdout.writeAll("\n");
+        try inputRenderBorder(stdout, st, region.slice.len, false);
+    }
+
+    try stdout.writeAll("\n");
+    try inputWriteStatus(stdout, st);
 }
 
 fn inputEvent(self: *base.ComponentBase, event: events.Event) bool {
     const st = @as(*InputState, @ptrCast(@alignCast(self.user_data.?)));
-    const allocator = st.gpa;
+    var consumed = false;
     switch (event) {
         .key => |k| {
-            if (k.codepoint) |cp| {
-                // backspace (8) or delete (127)
-                if (cp == 8 or cp == 127) {
-                    if (st.buf.items.len > 0) _ = st.buf.pop();
-                    return true;
-                }
-                // newline
-                if (cp == '\n') {
-                    if (st.multiline) {
-                        st.buf.append(allocator, '\n') catch return false;
-                        return true;
-                    }
-                    return false;
-                }
-                // append ASCII subset (simple demo)
-                if (cp >= 32 and cp <= 126) {
-                    st.buf.append(allocator, @as(u8, @intCast(cp))) catch return false;
-                    return true;
+            if (k.arrow_key) |arrow| consumed = inputHandleArrow(st, arrow);
+            if (!consumed) {
+                if (k.codepoint) |cp| {
+                    consumed = inputHandleCodepoint(st, cp);
                 }
             }
         },
         else => {},
     }
+    if (consumed) {
+        inputEnsureCursorVisible(st);
+    }
+    return consumed;
+}
+
+const VisibleRegion = struct {
+    slice: []const u8,
+    start: usize,
+};
+
+fn inputVisibleRegion(st: *InputState) VisibleRegion {
+    if (!st.multiline or st.visible_lines <= 1) {
+        return .{ .slice = st.buf.items, .start = 0 };
+    }
+    const start = inputLineStart(st.buf.items, st.scroll_line);
+    var end = start;
+    var lines_remaining = st.visible_lines;
+    if (lines_remaining == 0) lines_remaining = 1;
+    var newline_hits: usize = 0;
+    while (end < st.buf.items.len) : (end += 1) {
+        if (st.buf.items[end] == '\n') {
+            newline_hits += 1;
+            if (newline_hits >= lines_remaining) {
+                end += 1;
+                break;
+            }
+        }
+    }
+    return .{ .slice = st.buf.items[start..end], .start = start };
+}
+
+fn inputRenderBorder(stdout: std.fs.File, st: *InputState, visible_len: usize, top: bool) !void {
+    const base_width = st.prefix.len + st.suffix.len + visible_len + 2;
+    const width = @max(base_width, st.placeholder.len + 2);
+    _ = top; // same glyphs for now
+    try stdout.writeAll("+");
+    try writeRepeating(stdout, '-', width);
+    try stdout.writeAll("+");
+}
+
+fn inputWriteSlice(stdout: std.fs.File, st: *InputState, region: VisibleRegion) !void {
+    if (st.is_password) {
+        var i: usize = 0;
+        while (i < region.slice.len) : (i += 1) {
+            if (region.slice[i] == '\n') {
+                try stdout.writeAll("\n");
+            } else {
+                try stdout.writeAll("*");
+            }
+        }
+        return;
+    }
+    try stdout.writeAll(region.slice);
+}
+
+fn inputWriteStatus(stdout: std.fs.File, st: *InputState) !void {
+    const cursor_line = inputLineNumber(st.buf.items, st.cursor);
+    const line_start = inputLineStart(st.buf.items, cursor_line);
+    const col = st.cursor - line_start;
+    var buf: [128]u8 = undefined;
+    const msg = try std.fmt.bufPrint(&buf, "cursor line {d} col {d} / {d} chars", .{
+        cursor_line + 1,
+        col + 1,
+        st.buf.items.len,
+    });
+    try stdout.writeAll(msg);
+}
+
+fn inputEnsureCursorVisible(st: *InputState) void {
+    if (!st.multiline or st.visible_lines == 0) return;
+    const cursor_line = inputLineNumber(st.buf.items, st.cursor);
+    if (cursor_line < st.scroll_line) {
+        st.scroll_line = cursor_line;
+    }
+    const last_visible = st.scroll_line + st.visible_lines - 1;
+    if (cursor_line > last_visible) {
+        st.scroll_line = cursor_line - (st.visible_lines - 1);
+    }
+}
+
+fn inputHandleArrow(st: *InputState, arrow: events.ArrowKey) bool {
+    switch (arrow) {
+        .left => {
+            if (st.cursor > 0) {
+                st.cursor -= 1;
+                return true;
+            }
+        },
+        .right => {
+            if (st.cursor < st.buf.items.len) {
+                st.cursor += 1;
+                return true;
+            }
+        },
+        .up => {
+            return inputMoveCursorVertical(st, true);
+        },
+        .down => {
+            return inputMoveCursorVertical(st, false);
+        },
+    }
     return false;
+}
+
+fn inputHandleCodepoint(st: *InputState, cp: u21) bool {
+    switch (cp) {
+        8 => return inputBackspace(st),
+        127 => return inputDelete(st),
+        '\n' => {
+            if (st.multiline) {
+                return inputInsert(st, '\n');
+            }
+            return false;
+        },
+        else => {
+            if (cp < 32 or cp > 126) return false;
+            return inputInsert(st, @as(u8, @intCast(cp)));
+        },
+    }
+}
+
+fn inputMoveCursorVertical(st: *InputState, up: bool) bool {
+    if (!st.multiline) return false;
+    const cursor_line = inputLineNumber(st.buf.items, st.cursor);
+    const total_lines = inputLineNumber(st.buf.items, st.buf.items.len) + 1;
+    if (up and cursor_line == 0) return false;
+    if (!up and cursor_line + 1 >= total_lines) return false;
+    const target_line: usize = if (up) cursor_line - 1 else cursor_line + 1;
+    const current_col = st.cursor - inputLineStart(st.buf.items, cursor_line);
+    const target_start = inputLineStart(st.buf.items, target_line);
+    const target_end = inputLineEnd(st.buf.items, target_start);
+    st.cursor = target_start + @min(current_col, target_end - target_start);
+    return true;
+}
+
+fn inputInsert(st: *InputState, byte: u8) bool {
+    if (st.max_length != 0 and st.buf.items.len >= st.max_length) return false;
+    st.buf.insert(st.gpa, st.cursor, byte) catch return false;
+    st.cursor += 1;
+    return true;
+}
+
+fn inputBackspace(st: *InputState) bool {
+    if (st.cursor == 0) return false;
+    _ = st.buf.orderedRemove(st.cursor - 1);
+    st.cursor -= 1;
+    return true;
+}
+
+fn inputDelete(st: *InputState) bool {
+    if (st.cursor >= st.buf.items.len) return false;
+    _ = st.buf.orderedRemove(st.cursor);
+    return true;
+}
+
+fn inputLineNumber(buf: []const u8, index: usize) usize {
+    var i: usize = 0;
+    var line: usize = 0;
+    const capped = @min(index, buf.len);
+    while (i < capped) : (i += 1) {
+        if (buf[i] == '\n') line += 1;
+    }
+    return line;
+}
+
+fn inputLineStart(buf: []const u8, target_line: usize) usize {
+    var line: usize = 0;
+    var idx: usize = 0;
+    while (idx < buf.len and line < target_line) : (idx += 1) {
+        if (buf[idx] == '\n') {
+            line += 1;
+            if (line == target_line) {
+                idx += 1;
+                break;
+            }
+        }
+    }
+    if (line < target_line) return buf.len;
+    return idx;
+}
+
+fn inputLineEnd(buf: []const u8, start: usize) usize {
+    var idx = @min(start, buf.len);
+    while (idx < buf.len and buf[idx] != '\n') : (idx += 1) {}
+    return idx;
 }
 
 pub fn checkbox(allocator: std.mem.Allocator, opts: options.CheckboxOptions) !base.Component {
@@ -284,6 +637,11 @@ pub fn checkbox(allocator: std.mem.Allocator, opts: options.CheckboxOptions) !ba
         .focus_index = 0,
     };
     return .{ .base = component_ptr };
+}
+
+pub fn checkboxFramed(allocator: std.mem.Allocator, opts: options.CheckboxOptions, frame_opts: options.FrameOptions) !base.Component {
+    const inner = try checkbox(allocator, opts);
+    return frameDecorator(allocator, inner, frame_opts);
 }
 
 fn checkboxRender(self: *base.ComponentBase) anyerror!void {
@@ -330,6 +688,11 @@ pub fn toggle(allocator: std.mem.Allocator, opts: options.ToggleOptions) !base.C
         .focus_index = 0,
     };
     return .{ .base = component_ptr };
+}
+
+pub fn toggleFramed(allocator: std.mem.Allocator, opts: options.ToggleOptions, frame_opts: options.FrameOptions) !base.Component {
+    const inner = try toggle(allocator, opts);
+    return frameDecorator(allocator, inner, frame_opts);
 }
 
 fn toggleRender(self: *base.ComponentBase) anyerror!void {
@@ -678,6 +1041,11 @@ pub fn radioGroup(allocator: std.mem.Allocator, opts: options.RadioOptions) !bas
     return .{ .base = component_ptr };
 }
 
+pub fn radioGroupFramed(allocator: std.mem.Allocator, opts: options.RadioOptions, frame_opts: options.FrameOptions) !base.Component {
+    const inner = try radioGroup(allocator, opts);
+    return frameDecorator(allocator, inner, frame_opts);
+}
+
 fn radioGroupRender(self: *base.ComponentBase) anyerror!void {
     const stdout = std.fs.File.stdout();
     const state = @as(*RadioGroupState, @ptrCast(@alignCast(self.user_data.?)));
@@ -754,6 +1122,7 @@ pub fn dropdown(allocator: std.mem.Allocator, opts: options.DropdownOptions) !ba
         .is_open = opts.is_open and opts.items.len > 0,
         .placeholder = placeholder_copy,
         .allocator = allocator,
+        .custom_renderer = opts.custom_renderer,
     };
     state_ptr.ensureSelection();
 
@@ -770,9 +1139,274 @@ pub fn dropdown(allocator: std.mem.Allocator, opts: options.DropdownOptions) !ba
     return .{ .base = component_ptr };
 }
 
+pub fn dropdownCustom(allocator: std.mem.Allocator, opts: options.DropdownOptions, renderer_fn: options.DropdownRenderFn) !base.Component {
+    var derived = opts;
+    derived.custom_renderer = renderer_fn;
+    return dropdown(allocator, derived);
+}
+
+pub fn tabHorizontal(allocator: std.mem.Allocator, opts: options.TabsOptions) !base.Component {
+    var derived = opts;
+    derived.orientation = .horizontal;
+    return tabs(allocator, derived);
+}
+
+pub fn tabVertical(allocator: std.mem.Allocator, opts: options.TabsOptions) !base.Component {
+    var derived = opts;
+    derived.orientation = .vertical;
+    return tabs(allocator, derived);
+}
+
+fn tabs(allocator: std.mem.Allocator, opts: options.TabsOptions) !base.Component {
+    const labels_copy = try allocator.alloc([]const u8, opts.labels.len);
+    for (opts.labels, 0..) |tab_label, idx| {
+        labels_copy[idx] = try allocator.dupe(u8, tab_label);
+    }
+    const selected = if (opts.labels.len == 0) 0 else @min(opts.selected_index, opts.labels.len - 1);
+    const state_ptr = try allocator.create(TabsState);
+    state_ptr.* = .{
+        .labels = labels_copy,
+        .selected_index = selected,
+        .orientation = opts.orientation,
+    };
+
+    const component_ptr = try allocator.create(base.ComponentBase);
+    component_ptr.* = base.ComponentBase{
+        .text_cache = "",
+        .user_data = @as(*anyopaque, @ptrCast(state_ptr)),
+        .renderFn = tabsRender,
+        .eventFn = tabsEvent,
+        .animationFn = null,
+        .children = &[_]base.Component{},
+        .focus_index = selected,
+    };
+    return .{ .base = component_ptr };
+}
+
+fn tabsRender(self: *base.ComponentBase) anyerror!void {
+    const stdout = std.fs.File.stdout();
+    const state = @as(*TabsState, @ptrCast(@alignCast(self.user_data.?)));
+    if (state.labels.len == 0) {
+        try stdout.writeAll("(tabs unavailable)\n");
+        return;
+    }
+    switch (state.orientation) {
+        .horizontal => {
+            for (state.labels, 0..) |tab_label, idx| {
+                if (idx > 0) try stdout.writeAll("|");
+                if (idx == state.selected_index) {
+                    var buf: [96]u8 = undefined;
+                    const msg = try std.fmt.bufPrint(&buf, "[{s}]", .{tab_label});
+                    try stdout.writeAll(msg);
+                } else {
+                    var buf: [96]u8 = undefined;
+                    const msg = try std.fmt.bufPrint(&buf, "  {s}  ", .{tab_label});
+                    try stdout.writeAll(msg);
+                }
+            }
+            try stdout.writeAll("\n");
+        },
+        .vertical => {
+            for (state.labels, 0..) |tab_label, idx| {
+                const marker = if (idx == state.selected_index) ">" else " ";
+                var buf: [96]u8 = undefined;
+                const msg = try std.fmt.bufPrint(&buf, "{s} {s}\n", .{ marker, tab_label });
+                try stdout.writeAll(msg);
+            }
+        },
+    }
+}
+
+fn tabsEvent(self: *base.ComponentBase, event: events.Event) bool {
+    const state = @as(*TabsState, @ptrCast(@alignCast(self.user_data.?)));
+    switch (event) {
+        .key => |k| {
+            if (k.arrow_key) |arrow| {
+                switch (state.orientation) {
+                    .horizontal => {
+                        if (arrow == .left and state.selected_index > 0) {
+                            state.selected_index -= 1;
+                            self.focus_index = state.selected_index;
+                            return true;
+                        }
+                        if (arrow == .right and state.selected_index + 1 < state.labels.len) {
+                            state.selected_index += 1;
+                            self.focus_index = state.selected_index;
+                            return true;
+                        }
+                    },
+                    .vertical => {
+                        if (arrow == .up and state.selected_index > 0) {
+                            state.selected_index -= 1;
+                            self.focus_index = state.selected_index;
+                            return true;
+                        }
+                        if (arrow == .down and state.selected_index + 1 < state.labels.len) {
+                            state.selected_index += 1;
+                            self.focus_index = state.selected_index;
+                            return true;
+                        }
+                    },
+                }
+            }
+        },
+        .custom => |c| {
+            if (std.mem.eql(u8, c.tag, "tabs:next")) {
+                if (state.selected_index + 1 < state.labels.len) {
+                    state.selected_index += 1;
+                    return true;
+                }
+            } else if (std.mem.eql(u8, c.tag, "tabs:prev")) {
+                if (state.selected_index > 0) {
+                    state.selected_index -= 1;
+                    return true;
+                }
+            }
+        },
+        else => {},
+    }
+    return false;
+}
+
+pub fn scrollbar(allocator: std.mem.Allocator, opts: options.ScrollbarOptions) !base.Component {
+    const state_ptr = try allocator.create(ScrollbarState);
+    state_ptr.* = .{
+        .content_length = opts.content_length,
+        .viewport_length = opts.viewport_length,
+        .position = opts.position,
+        .orientation = opts.orientation,
+    };
+    scrollbarClamp(state_ptr);
+
+    const component_ptr = try allocator.create(base.ComponentBase);
+    component_ptr.* = base.ComponentBase{
+        .text_cache = "",
+        .user_data = @as(*anyopaque, @ptrCast(state_ptr)),
+        .renderFn = scrollbarRender,
+        .eventFn = scrollbarEvent,
+        .animationFn = null,
+        .children = &[_]base.Component{},
+        .focus_index = 0,
+    };
+    return .{ .base = component_ptr };
+}
+
+fn scrollbarRender(self: *base.ComponentBase) anyerror!void {
+    const stdout = std.fs.File.stdout();
+    const state = @as(*ScrollbarState, @ptrCast(@alignCast(self.user_data.?)));
+    const track_len: usize = if (state.orientation == .horizontal) 20 else 10;
+    const knob = scrollbarKnob(state, track_len);
+    if (state.orientation == .horizontal) {
+        var idx: usize = 0;
+        while (idx < track_len) : (idx += 1) {
+            if (idx >= knob.start and idx < knob.end) {
+                try stdout.writeAll("#");
+            } else {
+                try stdout.writeAll("-");
+            }
+        }
+        try stdout.writeAll("\n");
+    } else {
+        var idx: usize = 0;
+        while (idx < track_len) : (idx += 1) {
+            if (idx >= knob.start and idx < knob.end) {
+                try stdout.writeAll("|\n");
+            } else {
+                try stdout.writeAll(".\n");
+            }
+        }
+    }
+}
+
+fn scrollbarEvent(self: *base.ComponentBase, event: events.Event) bool {
+    const state = @as(*ScrollbarState, @ptrCast(@alignCast(self.user_data.?)));
+    var consumed = false;
+    switch (event) {
+        .key => |k| {
+            if (k.arrow_key) |arrow| {
+                consumed = scrollbarHandleArrow(state, arrow);
+            }
+        },
+        .custom => |c| {
+            if (std.mem.eql(u8, c.tag, "scroll:start")) {
+                state.position = 0;
+                consumed = true;
+            } else if (std.mem.eql(u8, c.tag, "scroll:end")) {
+                state.position = scrollbarMaxPosition(state);
+                consumed = true;
+            }
+        },
+        else => {},
+    }
+    if (consumed) scrollbarClamp(state);
+    return consumed;
+}
+
+fn scrollbarHandleArrow(state: *ScrollbarState, arrow: events.ArrowKey) bool {
+    switch (state.orientation) {
+        .horizontal => {
+            if (arrow == .left) return scrollbarAdvance(state, -1);
+            if (arrow == .right) return scrollbarAdvance(state, 1);
+        },
+        .vertical => {
+            if (arrow == .up) return scrollbarAdvance(state, -1);
+            if (arrow == .down) return scrollbarAdvance(state, 1);
+        },
+    }
+    return false;
+}
+
+fn scrollbarAdvance(state: *ScrollbarState, delta: i32) bool {
+    const max_pos = scrollbarMaxPosition(state);
+    const current = @as(i32, @intCast(state.position));
+    var next = current + delta;
+    if (next < 0) next = 0;
+    if (next > @as(i32, @intCast(max_pos))) next = @as(i32, @intCast(max_pos));
+    if (next == current) return false;
+    state.position = @as(usize, @intCast(next));
+    return true;
+}
+
+fn scrollbarClamp(state: *ScrollbarState) void {
+    if (state.viewport_length > state.content_length) {
+        state.viewport_length = state.content_length;
+    }
+    const max_pos = scrollbarMaxPosition(state);
+    if (state.position > max_pos) {
+        state.position = max_pos;
+    }
+}
+
+fn scrollbarMaxPosition(state: *ScrollbarState) usize {
+    if (state.content_length == 0 or state.viewport_length >= state.content_length) return 0;
+    return state.content_length - state.viewport_length;
+}
+
+const ScrollbarKnob = struct { start: usize, end: usize };
+
+fn scrollbarKnob(state: *ScrollbarState, track_len: usize) ScrollbarKnob {
+    if (track_len == 0 or state.content_length == 0) return .{ .start = 0, .end = track_len };
+    const total = if (state.content_length == 0) 1 else state.content_length;
+    const knob_len = @max(@as(usize, 1), (state.viewport_length * track_len) / @max(total, 1));
+    const max_offset = scrollbarMaxPosition(state);
+    const ratio = if (max_offset == 0) 0 else @as(f32, @floatFromInt(state.position)) / @as(f32, @floatFromInt(max_offset));
+    const range = if (track_len > knob_len) track_len - knob_len else 0;
+    const start = @as(usize, @intFromFloat(@floor(@as(f32, @floatFromInt(range)) * ratio)));
+    return .{ .start = start, .end = @min(track_len, start + knob_len) };
+}
+
 fn dropdownRender(self: *base.ComponentBase) anyerror!void {
     const stdout = std.fs.File.stdout();
     const state = @as(*DropdownState, @ptrCast(@alignCast(self.user_data.?)));
+    if (state.custom_renderer) |hook| {
+        try hook(.{
+            .items = state.items,
+            .selected_index = state.selected_index,
+            .is_open = state.is_open,
+            .placeholder = state.placeholder,
+        });
+        return;
+    }
     const display_label = state.currentLabel();
 
     try stdout.writeAll("[");
@@ -880,6 +1514,16 @@ pub fn menu(allocator: std.mem.Allocator, opts: options.MenuOptions) !base.Compo
         items_copy[idx] = try allocator.dupe(u8, item);
     }
     const selected = if (opts.items.len == 0) 0 else @min(opts.selected_index, opts.items.len - 1);
+    const selections = try allocator.alloc(bool, if (opts.multi_select) opts.items.len else 0);
+    if (opts.multi_select) {
+        if (opts.selected_flags) |flags| {
+            for (selections, 0..) |*sel, idx| {
+                sel.* = if (idx < flags.len) flags[idx] else false;
+            }
+        } else {
+            @memset(selections, false);
+        }
+    }
     const state_ptr = try allocator.create(MenuState);
     state_ptr.* = .{
         .items = items_copy,
@@ -887,6 +1531,10 @@ pub fn menu(allocator: std.mem.Allocator, opts: options.MenuOptions) !base.Compo
         .loop_navigation = opts.loop_navigation,
         .highlight_color = opts.highlight_color,
         .animation_enabled = opts.animation_enabled,
+        .multi_select = opts.multi_select,
+        .selections = selections,
+        .underline_gallery = opts.underline_gallery,
+        .custom_renderer = opts.custom_renderer,
     };
 
     const component_ptr = try allocator.create(base.ComponentBase);
@@ -902,9 +1550,26 @@ pub fn menu(allocator: std.mem.Allocator, opts: options.MenuOptions) !base.Compo
     return .{ .base = component_ptr };
 }
 
+pub fn menuCustom(allocator: std.mem.Allocator, opts: options.MenuOptions, renderer_fn: options.MenuRenderFn) !base.Component {
+    var derived = opts;
+    derived.custom_renderer = renderer_fn;
+    return menu(allocator, derived);
+}
+
 fn menuRender(self: *base.ComponentBase) anyerror!void {
     const stdout = std.fs.File.stdout();
     const state = @as(*MenuState, @ptrCast(@alignCast(self.user_data.?)));
+    if (state.custom_renderer) |hook| {
+        try hook(.{
+            .items = state.items,
+            .selected_index = state.selected_index,
+            .selected_flags = if (state.multi_select) state.selections else null,
+            .underline_gallery = state.underline_gallery,
+            .highlight_color = state.highlight_color,
+            .phase = state.phase,
+        });
+        return;
+    }
     if (state.items.len == 0) {
         try stdout.writeAll("(empty menu)\n");
         return;
@@ -912,13 +1577,25 @@ fn menuRender(self: *base.ComponentBase) anyerror!void {
     for (state.items, 0..) |item, idx| {
         const active = idx == state.selected_index;
         const pulse = if (state.animation_enabled and active and state.phase > 0.5) "*" else ">";
-        if (active) {
+        if (state.multi_select) {
+            const chosen = if (idx < state.selections.len) state.selections[idx] else false;
+            const box = if (chosen) "[x]" else "[ ]";
+            var buf_multi: [128]u8 = undefined;
+            const msg_multi = try std.fmt.bufPrint(&buf_multi, "{s} {s} {s}\n", .{ pulse, box, item });
+            try stdout.writeAll(msg_multi);
+        } else if (active) {
             var buf: [96]u8 = undefined;
             const msg = try std.fmt.bufPrint(&buf, "{s} {s} (0x{X:0>6})\n", .{ pulse, item, state.highlight_color });
             try stdout.writeAll(msg);
         } else {
             try stdout.writeAll("  ");
             try stdout.writeAll(item);
+            try stdout.writeAll("\n");
+        }
+        if (state.underline_gallery) {
+            const underline_char: u8 = if (state.phase > 0.5) '=' else '-';
+            try stdout.writeAll("   ");
+            try writeRepeating(stdout, underline_char, item.len);
             try stdout.writeAll("\n");
         }
     }
@@ -941,9 +1618,25 @@ fn menuEvent(self: *base.ComponentBase, event: events.Event) bool {
                 }
             }
             if (k.codepoint) |cp| {
-                if (cp == '\n' or cp == ' ') {
+                if (cp == '\n') {
                     return true;
                 }
+                if (cp == ' ' and state.multi_select) {
+                    if (state.selected_index < state.selections.len) {
+                        state.selections[state.selected_index] = !state.selections[state.selected_index];
+                        return true;
+                    }
+                }
+            }
+        },
+        .custom => |c| {
+            if (std.mem.eql(u8, c.tag, "menu:select_all") and state.multi_select) {
+                for (state.selections) |*flag| flag.* = true;
+                return true;
+            }
+            if (std.mem.eql(u8, c.tag, "menu:clear") and state.multi_select) {
+                for (state.selections) |*flag| flag.* = false;
+                return true;
             }
         },
         else => {},
@@ -1038,6 +1731,20 @@ fn splitEvent(self: *base.ComponentBase, event: events.Event) bool {
                 }
             }
         },
+        .custom => |c| {
+            if (std.mem.eql(u8, c.tag, "split:clamp:min")) {
+                state.ratio = state.min_ratio;
+                return true;
+            }
+            if (std.mem.eql(u8, c.tag, "split:clamp:max")) {
+                state.ratio = state.max_ratio;
+                return true;
+            }
+            if (std.mem.eql(u8, c.tag, "split:center")) {
+                state.ratio = (state.min_ratio + state.max_ratio) / 2.0;
+                return true;
+            }
+        },
         else => {},
     }
     return false;
@@ -1048,6 +1755,110 @@ fn splitAdjust(state: *SplitState, delta: f32) bool {
     if (next == state.ratio) return false;
     state.ratio = next;
     return true;
+}
+
+pub fn splitWithClampIndicator(allocator: std.mem.Allocator, first: base.Component, second: base.Component, opts: options.SplitOptions) !base.Component {
+    const core = try split(allocator, first, second, opts);
+    var buf: [96]u8 = undefined;
+    const caption = try std.fmt.bufPrint(&buf, "split {d:.2}-{d:.2}", .{ opts.min_ratio, opts.max_ratio });
+    return frameDecorator(allocator, core, .{ .title = caption, .charset = .double });
+}
+
+pub fn windowComposition(allocator: std.mem.Allocator, windows: []const base.Component, title: []const u8) !base.Component {
+    const layout = try container(allocator, windows);
+    return frameDecorator(allocator, layout, .{ .title = title, .charset = .single });
+}
+
+pub fn homescreen(allocator: std.mem.Allocator, header: []const u8, sections: []const []const u8, windows: []const base.Component) !base.Component {
+    const window_copy = try allocator.dupe(base.Component, windows);
+    const sections_copy = try allocator.alloc([]const u8, sections.len);
+    for (sections, 0..) |entry, idx| {
+        sections_copy[idx] = try allocator.dupe(u8, entry);
+    }
+    const header_copy = try allocator.dupe(u8, header);
+    const state_ptr = try allocator.create(HomescreenState);
+    state_ptr.* = .{ .sections = sections_copy, .windows = window_copy, .header = header_copy };
+
+    const component_ptr = try allocator.create(base.ComponentBase);
+    component_ptr.* = base.ComponentBase{
+        .text_cache = "",
+        .user_data = @as(*anyopaque, @ptrCast(state_ptr)),
+        .renderFn = homescreenRender,
+        .eventFn = homescreenEvent,
+        .animationFn = null,
+        .children = window_copy,
+        .focus_index = 0,
+    };
+    return .{ .base = component_ptr };
+}
+
+fn homescreenRender(self: *base.ComponentBase) anyerror!void {
+    const stdout = std.fs.File.stdout();
+    const state = @as(*HomescreenState, @ptrCast(@alignCast(self.user_data.?)));
+    try stdout.writeAll(state.header);
+    try stdout.writeAll("\n");
+    for (state.windows, 0..) |win, idx| {
+        try stdout.writeAll("-- window ");
+        var buf: [32]u8 = undefined;
+        const line = try std.fmt.bufPrint(&buf, "#{d}\n", .{idx + 1});
+        try stdout.writeAll(line);
+        try win.render();
+        try stdout.writeAll("\n");
+    }
+    if (state.sections.len > 0) {
+        try stdout.writeAll("Sections:\n");
+        for (state.sections, 0..) |entry, idx| {
+            var buf: [128]u8 = undefined;
+            const msg = try std.fmt.bufPrint(&buf, "  {d}. {s}\n", .{ idx + 1, entry });
+            try stdout.writeAll(msg);
+        }
+    }
+}
+
+fn homescreenEvent(self: *base.ComponentBase, event: events.Event) bool {
+    const state = @as(*HomescreenState, @ptrCast(@alignCast(self.user_data.?)));
+    for (state.windows) |child| {
+        if (child.onEvent(event)) return true;
+    }
+    return false;
+}
+
+pub fn visualGallery(allocator: std.mem.Allocator, caption: []const u8) !base.Component {
+    const state_ptr = try allocator.create(GalleryState);
+    state_ptr.* = .{ .caption = try allocator.dupe(u8, caption), .canvas_demo = try allocator.dupe(u8, "canvas demo\n+---+\n|***|\n+---+"), .gradient_demo = try allocator.dupe(u8, "gradient demo\n>>>>====<<<<"), .hover_demo = try allocator.dupe(u8, "hover gallery\n[hover to highlight]"), .focus_demo = try allocator.dupe(u8, "focus gallery\n(cursor jumps)") };
+
+    const component_ptr = try allocator.create(base.ComponentBase);
+    component_ptr.* = base.ComponentBase{
+        .text_cache = "",
+        .user_data = @as(*anyopaque, @ptrCast(state_ptr)),
+        .renderFn = galleryRender,
+        .eventFn = galleryEvent,
+        .animationFn = null,
+        .children = &[_]base.Component{},
+        .focus_index = 0,
+    };
+    return .{ .base = component_ptr };
+}
+
+fn galleryRender(self: *base.ComponentBase) anyerror!void {
+    const stdout = std.fs.File.stdout();
+    const state = @as(*GalleryState, @ptrCast(@alignCast(self.user_data.?)));
+    try stdout.writeAll(state.caption);
+    try stdout.writeAll("\n====\n");
+    try stdout.writeAll(state.canvas_demo);
+    try stdout.writeAll("\n----\n");
+    try stdout.writeAll(state.gradient_demo);
+    try stdout.writeAll("\n----\n");
+    try stdout.writeAll(state.hover_demo);
+    try stdout.writeAll("\n----\n");
+    try stdout.writeAll(state.focus_demo);
+    try stdout.writeAll("\n");
+}
+
+fn galleryEvent(self: *base.ComponentBase, event: events.Event) bool {
+    _ = self;
+    _ = event;
+    return false;
 }
 
 pub fn modal(allocator: std.mem.Allocator, child: base.Component, opts: options.ModalOptions) !base.Component {
@@ -1301,6 +2112,163 @@ fn windowRender(self: *base.ComponentBase) anyerror!void {
 fn windowEvent(self: *base.ComponentBase, event: events.Event) bool {
     const state = @as(*WindowState, @ptrCast(@alignCast(self.user_data.?)));
     return state.child.onEvent(event);
+}
+
+fn frameDecorator(allocator: std.mem.Allocator, child: base.Component, opts: options.FrameOptions) !base.Component {
+    const child_list = try allocator.alloc(base.Component, 1);
+    child_list[0] = child;
+    const title_copy = try allocator.dupe(u8, opts.title);
+    const state_ptr = try allocator.create(FrameWrapperState);
+    state_ptr.* = .{ .child = child, .options = .{ .title = title_copy, .charset = opts.charset } };
+
+    const component_ptr = try allocator.create(base.ComponentBase);
+    component_ptr.* = base.ComponentBase{
+        .text_cache = "",
+        .user_data = @as(*anyopaque, @ptrCast(state_ptr)),
+        .renderFn = frameDecoratorRender,
+        .eventFn = frameDecoratorEvent,
+        .animationFn = null,
+        .children = child_list,
+        .focus_index = 0,
+    };
+    return .{ .base = component_ptr };
+}
+
+fn frameDecoratorRender(self: *base.ComponentBase) anyerror!void {
+    const stdout = std.fs.File.stdout();
+    const state = @as(*FrameWrapperState, @ptrCast(@alignCast(self.user_data.?)));
+    const glyphs = frameGlyphs(state.options.charset);
+    const min_width: usize = @max(state.options.title.len + 4, 12);
+    try stdout.writeAll(&[_]u8{glyphs.corner});
+    try writeRepeating(stdout, glyphs.horiz, min_width);
+    try stdout.writeAll(&[_]u8{glyphs.corner});
+    try stdout.writeAll("\n");
+    if (state.options.title.len > 0) {
+        try stdout.writeAll(&[_]u8{glyphs.vert});
+        try stdout.writeAll(" ");
+        try stdout.writeAll(state.options.title);
+        if (min_width + 1 > state.options.title.len + 1) {
+            try writeRepeating(stdout, ' ', min_width - state.options.title.len);
+        }
+        try stdout.writeAll(" ");
+        try stdout.writeAll(&[_]u8{glyphs.vert});
+        try stdout.writeAll("\n");
+    }
+    try state.child.render();
+    try stdout.writeAll(&[_]u8{glyphs.corner});
+    try writeRepeating(stdout, glyphs.horiz, min_width);
+    try stdout.writeAll(&[_]u8{glyphs.corner});
+    try stdout.writeAll("\n");
+}
+
+fn frameDecoratorEvent(self: *base.ComponentBase, event: events.Event) bool {
+    const state = @as(*FrameWrapperState, @ptrCast(@alignCast(self.user_data.?)));
+    return state.child.onEvent(event);
+}
+
+const FrameGlyphs = struct {
+    horiz: u8,
+    vert: u8,
+    corner: u8,
+};
+
+fn frameGlyphs(charset: options.FrameCharset) FrameGlyphs {
+    return switch (charset) {
+        .single => .{ .horiz = '-', .vert = '|', .corner = '+' },
+        .double => .{ .horiz = '=', .vert = '#', .corner = '*' },
+    };
+}
+
+pub fn renderer(allocator: std.mem.Allocator, child: base.Component, render_fn: RendererFn) !base.Component {
+    const child_list = try allocator.alloc(base.Component, 1);
+    child_list[0] = child;
+    const state_ptr = try allocator.create(RendererDecoratorState);
+    state_ptr.* = .{ .child = child, .renderFn = render_fn, .show_child = false };
+
+    const component_ptr = try allocator.create(base.ComponentBase);
+    component_ptr.* = base.ComponentBase{
+        .text_cache = "",
+        .user_data = @as(*anyopaque, @ptrCast(state_ptr)),
+        .renderFn = rendererDecoratorRender,
+        .eventFn = rendererDecoratorEvent,
+        .animationFn = null,
+        .children = child_list,
+        .focus_index = 0,
+    };
+    return .{ .base = component_ptr };
+}
+
+fn rendererDecoratorRender(self: *base.ComponentBase) anyerror!void {
+    const stdout = std.fs.File.stdout();
+    const state = @as(*RendererDecoratorState, @ptrCast(@alignCast(self.user_data.?)));
+    try state.renderFn(.{ .stdout = stdout, .child = state.child });
+    if (state.show_child) {
+        try stdout.writeAll("\n");
+        try state.child.render();
+    }
+}
+
+fn rendererDecoratorEvent(self: *base.ComponentBase, event: events.Event) bool {
+    const state = @as(*RendererDecoratorState, @ptrCast(@alignCast(self.user_data.?)));
+    return state.child.onEvent(event);
+}
+
+pub fn maybe(allocator: std.mem.Allocator, child: base.Component, visible: bool) !base.Component {
+    const child_list = try allocator.alloc(base.Component, 1);
+    child_list[0] = child;
+    const state_ptr = try allocator.create(MaybeState);
+    state_ptr.* = .{ .child = child, .visible = visible };
+
+    const component_ptr = try allocator.create(base.ComponentBase);
+    component_ptr.* = base.ComponentBase{
+        .text_cache = "",
+        .user_data = @as(*anyopaque, @ptrCast(state_ptr)),
+        .renderFn = maybeRender,
+        .eventFn = maybeEvent,
+        .animationFn = null,
+        .children = child_list,
+        .focus_index = 0,
+    };
+    return .{ .base = component_ptr };
+}
+
+fn maybeRender(self: *base.ComponentBase) anyerror!void {
+    const stdout = std.fs.File.stdout();
+    const state = @as(*MaybeState, @ptrCast(@alignCast(self.user_data.?)));
+    if (state.visible) {
+        try state.child.render();
+    } else {
+        try stdout.writeAll("(hidden component)\n");
+    }
+}
+
+fn maybeEvent(self: *base.ComponentBase, event: events.Event) bool {
+    const state = @as(*MaybeState, @ptrCast(@alignCast(self.user_data.?)));
+    switch (event) {
+        .key => |k| {
+            if (k.codepoint) |cp| {
+                if (cp == ' ') {
+                    state.visible = !state.visible;
+                    return true;
+                }
+            }
+        },
+        .custom => |c| {
+            if (std.mem.eql(u8, c.tag, "maybe:show")) {
+                state.visible = true;
+                return true;
+            }
+            if (std.mem.eql(u8, c.tag, "maybe:hide")) {
+                state.visible = false;
+                return true;
+            }
+        },
+        else => {},
+    }
+    if (state.visible) {
+        return state.child.onEvent(event);
+    }
+    return false;
 }
 
 test "radio group initializes with selected index" {
@@ -1568,3 +2536,145 @@ test "window forwards events to child" {
     try std.testing.expect(consumed);
     try std.testing.expect(triggered);
 }
+
+test "button animated registers animation callback" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    const comp = try buttonAnimated(allocator, "Glow", .{});
+    try std.testing.expect(comp.base.animationFn != null);
+}
+
+test "text area tracks multiline cursor" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    const area = try textArea(allocator, .{ .placeholder = "Notes" });
+    const st = @as(*InputState, @ptrCast(@alignCast(area.base.user_data.?)));
+    try std.testing.expect(st.multiline);
+    try std.testing.expect(st.visible_lines > 1);
+}
+
+test "menu multi select toggles with space" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    const items = [_][]const u8{ "One", "Two" };
+    const menu_component = try menu(allocator, .{ .items = &items, .multi_select = true });
+    const state = @as(*MenuState, @ptrCast(@alignCast(menu_component.base.user_data.?)));
+    try std.testing.expect(state.selections.len == items.len);
+    _ = menu_component.onEvent(.{ .key = .{ .codepoint = ' ' } });
+    try std.testing.expect(state.selections[0]);
+}
+
+test "tabs respond to arrow keys" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    const tabs_component = try tabVertical(allocator, .{ .labels = &[_][]const u8{ "A", "B" } });
+    const state = @as(*TabsState, @ptrCast(@alignCast(tabs_component.base.user_data.?)));
+    _ = tabs_component.onEvent(.{ .key = .{ .arrow_key = .down } });
+    try std.testing.expectEqual(@as(usize, 1), state.selected_index);
+}
+
+test "scrollbar arrow adjusts position" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    const bar = try scrollbar(allocator, .{ .content_length = 100, .viewport_length = 10 });
+    const state = @as(*ScrollbarState, @ptrCast(@alignCast(bar.base.user_data.?)));
+    _ = bar.onEvent(.{ .key = .{ .arrow_key = .down } });
+    try std.testing.expect(state.position > 0);
+}
+
+test "split custom clamp events set ratio" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    const a = try label(allocator, "A");
+    const b = try label(allocator, "B");
+    const comp = try split(allocator, a, b, .{ .ratio = 0.4, .min_ratio = 0.3, .max_ratio = 0.8 });
+    const state = @as(*SplitState, @ptrCast(@alignCast(comp.base.user_data.?)));
+    _ = comp.onEvent(.{ .custom = .{ .tag = "split:clamp:max" } });
+    try std.testing.expectEqual(@as(f32, 0.8), state.ratio);
+}
+
+fn dropdownNoopRenderer(payload: options.DropdownRenderPayload) anyerror!void {
+    _ = payload;
+}
+
+test "dropdown custom renderer is stored" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    const dd = try dropdownCustom(allocator, .{ .items = &[_][]const u8{"X"} }, dropdownNoopRenderer);
+    const state = @as(*DropdownState, @ptrCast(@alignCast(dd.base.user_data.?)));
+    try std.testing.expect(state.custom_renderer != null);
+}
+
+test "maybe decorator toggles visibility" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    const child = try label(allocator, "Hidden");
+    const maybe_component = try maybe(allocator, child, false);
+    const state = @as(*MaybeState, @ptrCast(@alignCast(maybe_component.base.user_data.?)));
+    try std.testing.expect(!state.visible);
+    _ = maybe_component.onEvent(.{ .key = .{ .codepoint = ' ' } });
+    try std.testing.expect(state.visible);
+}
+
+test "homescreen stores sections" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    const windows = [_]base.Component{try label(allocator, "Pane")};
+    const comp = try homescreen(allocator, "Home", &[_][]const u8{"Inbox"}, &windows);
+    const state = @as(*HomescreenState, @ptrCast(@alignCast(comp.base.user_data.?)));
+    try std.testing.expectEqual(@as(usize, 1), state.sections.len);
+}
+
+test "visual gallery duplicates caption" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    const gallery = try visualGallery(allocator, "Gallery");
+    const state = @as(*GalleryState, @ptrCast(@alignCast(gallery.base.user_data.?)));
+    try std.testing.expectEqualStrings("Gallery", state.caption);
+}
+const FrameWrapperState = struct {
+    child: base.Component,
+    options: options.FrameOptions,
+};
+
+const RendererContext = struct {
+    stdout: std.fs.File,
+    child: base.Component,
+};
+
+const RendererFn = *const fn (RendererContext) anyerror!void;
+
+const RendererDecoratorState = struct {
+    child: base.Component,
+    renderFn: RendererFn,
+    show_child: bool,
+};
+
+const MaybeState = struct {
+    child: base.Component,
+    visible: bool,
+};
+
+const HomescreenState = struct {
+    sections: []const []const u8,
+    windows: []base.Component,
+    header: []const u8,
+};
+
+const GalleryState = struct {
+    caption: []const u8,
+    canvas_demo: []const u8,
+    gradient_demo: []const u8,
+    hover_demo: []const u8,
+    focus_demo: []const u8,
+};

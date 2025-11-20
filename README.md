@@ -1,2 +1,51 @@
 # Zettui - TUI library written in Ziglang
 
+Zettui は Zig で書かれたターミナル UI ツールキットです。`src/` 以下に DOM / Component / Screen モジュールを分割し、`zig build` でライブラリ・テスト・例をビルドできます。
+
+## Examples
+
+- `zig build run` – メインデモ (`examples/demo.zig`)
+- `zig build run:layout` – DOM を Screen に描画するレイアウトデモ
+- `zig build run:style-gallery` – `styleOwned`/`styleColorOwned` を使ったタイポ/カラーギャラリー
+- `zig build run:widgets` – スライダー・ラジオなどのウィジェット出力
+- `zig build run:widgets-interactive` – 入力イベントを送って状態遷移を確認
+- `zig build run:spin` – スピナーアニメーション
+- `zig build run:interaction` – キー/マウスコマンドでメニュー選択とボタンクリックをシミュレート
+
+`zig build run:style-gallery` は stdout に ANSI カラー付きで見出しを描画するため、Screen アダプタを介さずに新しいスタイリング API を確認できます。
+
+```
+$ zig build run:style-gallery
+Zettui style & color gallery
+
+== Typography ==
+Bold / Strong
+Italic emphasis
+Single underline
+Double underline
+Strike through
+Blink cursor sample
+Dim accent
+Inverse focus block
+
+== Colors ==
+Crimson
+Emerald
+Azure
+Sunset on charcoal
+Neon on midnight
+Lavender underline
+```
+
+実際の出力は ANSI エスケープで彩色されます (例: Crimson 行は赤、Sunset 行は FG/BG を変更)。
+
+`zig build run:interaction` は実行中に端末を一時的に raw モードへ切り替え、矢印キーや Enter でメニューを移動・選択できます。スペースまたは SGR マウスイベント（クリック）でボタンを点滅させ、`q` で終了します。
+
+## Running interactive demos under a pseudo-TTY
+
+Some demos (e.g. `print_key_press`, `focus_cursor`) expect a real TTY to enable raw mode. When running inside a non-interactive environment, wrap the command with `script -qfc`. Examples:
+
+```bash
+printf 'q' | script -qfc "ZIG_GLOBAL_CACHE_DIR=./.zig-cache zig build run:print-key-press" /dev/null
+printf 'q' | script -qfc "ZIG_GLOBAL_CACHE_DIR=./.zig-cache zig build run:focus-cursor" /dev/null
+```
