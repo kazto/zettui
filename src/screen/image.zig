@@ -37,8 +37,15 @@ pub const Image = struct {
     }
 };
 
+pub const StyleFlags = struct {
+    pub const bold: u8 = 1 << 0;
+    pub const italic: u8 = 1 << 1;
+    pub const underline: u8 = 1 << 2;
+};
+
 pub const Pixel = struct {
     glyph: []const u8 = glyphFromByte(' '),
     fg: u24 = 0xFFFFFF,
     bg: u24 = 0x000000,
+    style: u8 = 0,
 };

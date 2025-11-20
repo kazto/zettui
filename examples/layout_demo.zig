@@ -7,14 +7,14 @@ pub fn main() !void {
     var screen = try zettui.screen.Screen.init(gpa, 64, 12);
     defer gpa.free(screen.image.pixels);
 
-    screen.clear(.{ .glyph = " ", .fg = 0xFFFFFF, .bg = 0x000000 });
+    screen.clear(.{ .glyph = " ", .fg = 0xFFFFFF, .bg = 0x000000, .style = 0 });
 
     // Drawer adapter bridging DOM RenderContext to Screen
     const Adapter = struct {
-        fn draw(user_data: *anyopaque, x: i32, y: i32, text: []const u8) anyerror!void {
+        fn draw(user_data: *anyopaque, x: i32, y: i32, text: []const u8, style: zettui.screen.Pixel) anyerror!void {
             const scr = @as(*zettui.screen.Screen, @ptrCast(@alignCast(user_data)));
             if (x >= 0 and y >= 0) {
-                scr.drawString(@as(usize, @intCast(x)), @as(usize, @intCast(y)), text);
+                scr.drawString(@as(usize, @intCast(x)), @as(usize, @intCast(y)), text, style);
             }
         }
     };
@@ -68,7 +68,7 @@ pub fn main() !void {
 
     // Show focus + cursor decorators: render text and a caret using selection info
     try out.writeAll("\nFocus + Cursor decorators demo:\n");
-    screen.clear(.{ .glyph = " ", .fg = 0xFFFFFF, .bg = 0x000000 });
+    screen.clear(.{ .glyph = " ", .fg = 0xFFFFFF, .bg = 0x000000, .style = 0 });
 
     const editable = zettui.dom.elements.text("Edit me");
     // Wrap with focus and cursor (index 4)
@@ -91,6 +91,6 @@ pub fn main() !void {
     tmp.select(&sel);
     const caret_x: usize = @intCast(ctx3.origin_x + @as(i32, @intCast(sel.cursor_index)));
     const caret_y: usize = @intCast(ctx3.origin_y + 1);
-    screen.drawString(caret_x, caret_y, "^");
+    screen.drawString(caret_x, caret_y, "^", .{});
     try screen.present(out);
 }

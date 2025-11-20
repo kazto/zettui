@@ -90,12 +90,15 @@ pub const Screen = struct {
         self.image.fill(pixel);
     }
 
-    pub fn drawString(self: *Screen, x: usize, y: usize, text: []const u8) void {
+    pub fn drawString(self: *Screen, x: usize, y: usize, text: []const u8, style: Pixel) void {
         const width = self.image.width;
         for (text, 0..) |char_byte, idx| {
             const offset = y * width + x + idx;
             if (offset >= self.image.pixels.len) break;
             self.image.pixels[offset].glyph = image_mod.glyphFromByte(char_byte);
+            self.image.pixels[offset].fg = style.fg;
+            self.image.pixels[offset].bg = style.bg;
+            self.image.pixels[offset].style = style.style;
         }
     }
 
@@ -168,8 +171,9 @@ test "drawString writes glyphs and present flushes rows" {
         .glyph = " ",
         .fg = 0x000000,
         .bg = 0x000000,
+        .style = 0,
     });
-    screen.drawString(1, 0, "hi");
+    screen.drawString(1, 0, "hi", .{});
 
     var buffer = std.array_list.Managed(u8).init(allocator);
     defer buffer.deinit();

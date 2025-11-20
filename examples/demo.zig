@@ -11,9 +11,10 @@ pub fn main() !void {
         .glyph = " ",
         .fg = 0xFFFFFF,
         .bg = 0x000000,
+        .style = 0,
     });
 
-    screen.drawString(2, 1, "Zettui demo");
+    screen.drawString(2, 1, "Zettui demo", .{});
 
     const stdout = std.fs.File.stdout();
     try screen.present(stdout);
@@ -71,13 +72,13 @@ pub fn main() !void {
 
     // DOM rendering via Screen drawer (coordinate-aware)
     try stdout.writeAll("\nDOM drawer demo (Screen):\n");
-    screen.clear(.{ .glyph = " ", .fg = 0xFFFFFF, .bg = 0x000000 });
+    screen.clear(.{ .glyph = " ", .fg = 0xFFFFFF, .bg = 0x000000, .style = 0 });
 
     const Adapter = struct {
-        fn draw(user_data: *anyopaque, x: i32, y: i32, text: []const u8) anyerror!void {
+        fn draw(user_data: *anyopaque, x: i32, y: i32, text: []const u8, style: zettui.screen.Pixel) anyerror!void {
             const scr = @as(*zettui.screen.Screen, @ptrCast(@alignCast(user_data)));
             if (x >= 0 and y >= 0) {
-                scr.drawString(@as(usize, @intCast(x)), @as(usize, @intCast(y)), text);
+                scr.drawString(@as(usize, @intCast(x)), @as(usize, @intCast(y)), text, style);
             }
         }
     };
