@@ -19,11 +19,8 @@ pub fn main() !void {
 
 fn renderWindow(stdout: *std.fs.File, allocator: std.mem.Allocator) !void {
     try renderHeading(stdout, allocator, "-- Window --", .{ .fg = 0x38BDF8 });
-    const window_component = try zettui.component.widgets.window(allocator, .{
-        .title = "Status",
-        .body = "All services healthy.",
-        .buttons = &[_][]const u8{ "Refresh", "Close" },
-    });
+    const body = try windowBody(allocator, "All services healthy.");
+    const window_component = try zettui.component.widgets.window(allocator, body, .{ .title = "Status" });
     try window_component.render();
     try stdout.writeAll("\n");
 }
@@ -54,6 +51,10 @@ fn renderCollapsible(stdout: *std.fs.File, allocator: std.mem.Allocator) !void {
     _ = collapsible_component.onEvent(.{ .key = .{ .codepoint = ' ' } });
     try collapsible_component.render();
     try stdout.writeAll("\n");
+}
+
+fn windowBody(allocator: std.mem.Allocator, body: []const u8) !zettui.component.base.Component {
+    return try zettui.component.widgets.button(allocator, .{ .label = body });
 }
 
 fn renderHeading(stdout: *std.fs.File, allocator: std.mem.Allocator, text: []const u8, attrs: zettui.dom.StyleAttributes) !void {

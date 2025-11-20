@@ -2647,12 +2647,12 @@ const FrameWrapperState = struct {
     options: options.FrameOptions,
 };
 
-const RendererContext = struct {
+pub const RendererContext = struct {
     stdout: std.fs.File,
     child: base.Component,
 };
 
-const RendererFn = *const fn (RendererContext) anyerror!void;
+pub const RendererFn = *const fn (RendererContext) anyerror!void;
 
 const RendererDecoratorState = struct {
     child: base.Component,

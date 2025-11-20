@@ -11,12 +11,12 @@ pub fn main() !void {
     try stdout_file.writeAll("=== DOM Text, Paragraphs, and pseudo-links ===\n\n");
 
     var ctx = makeContext(&stdout_file, a);
-    try renderParagraphs(&ctx, &stdout_file, a);
+    try renderParagraphs(&ctx, &stdout_file);
     try stdout_file.writeAll("\n");
     try renderTextFlow(&ctx, &stdout_file, a);
 }
 
-fn renderParagraphs(ctx: *zettui.dom.RenderContext, stdout: *std.fs.File, allocator: std.mem.Allocator) !void {
+fn renderParagraphs(ctx: *zettui.dom.RenderContext, stdout: *std.fs.File) !void {
     try stdout.writeAll("-- Paragraph width wrapping --\n");
     const body = zettui.dom.elements.paragraph(
         "Paragraph nodes automatically wrap text to the requested width, producing multi-line DOM nodes without manual slicing.",

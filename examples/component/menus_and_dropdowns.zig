@@ -78,7 +78,7 @@ fn renderDropdowns(stdout: *std.fs.File, allocator: std.mem.Allocator) !void {
 }
 
 fn menuCustomRenderer(payload: zettui.component.options.MenuRenderPayload) anyerror!void {
-    const stdout = std.fs.File.stdout();
+    var stdout = std.fs.File.stdout();
     try stdout.writeAll("[custom menu]\n");
     for (payload.items, 0..) |item, idx| {
         const mark = if (idx == payload.selected_index) ">>" else "  ";
@@ -88,14 +88,14 @@ fn menuCustomRenderer(payload: zettui.component.options.MenuRenderPayload) anyer
         try stdout.writeAll(line);
         if (payload.underline_gallery) {
             try stdout.writeAll("   ");
-            try writeRepeating(stdout, underline_char, item.len);
+            try writeRepeating(&stdout, underline_char, item.len);
             try stdout.writeAll("\n");
         }
     }
 }
 
 fn dropdownCustomRenderer(payload: zettui.component.options.DropdownRenderPayload) anyerror!void {
-    const stdout = std.fs.File.stdout();
+    var stdout = std.fs.File.stdout();
     const label = if (payload.selected_index) |idx| payload.items[idx] else payload.placeholder;
     var buf: [128]u8 = undefined;
     const line = try std.fmt.bufPrint(&buf, "[custom dropdown] {s} {s}\n", .{ if (payload.is_open) "(open)" else "(closed)", label });
@@ -105,7 +105,7 @@ fn dropdownCustomRenderer(payload: zettui.component.options.DropdownRenderPayloa
 fn writeRepeating(stdout: *std.fs.File, ch: u8, count: usize) anyerror!void {
     var i: usize = 0;
     while (i < count) : (i += 1) {
-        try stdout.writeByte(ch);
+        try stdout.writeAll(&[_]u8{ch});
     }
 }
 

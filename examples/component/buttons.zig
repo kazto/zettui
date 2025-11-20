@@ -42,13 +42,14 @@ fn renderButtonFrames(stdout: *std.fs.File, allocator: std.mem.Allocator) !void 
     try framed.render();
     try stdout.writeAll("\n");
 
-    const window = try zettui.component.widgets.window(allocator, .{
-        .title = "Window with actions",
-        .body = "Use button components to pop dialogs or trigger async work.",
-        .buttons = &[_][]const u8{ "Accept", "Decline" },
-    });
+    const window_body = try makeWindowBody(allocator, "Use button components to pop dialogs or trigger async work.");
+    const window = try zettui.component.widgets.window(allocator, window_body, .{ .title = "Window with actions" });
     try window.render();
     try stdout.writeAll("\n");
+}
+
+fn makeWindowBody(allocator: std.mem.Allocator, body: []const u8) !zettui.component.base.Component {
+    return try zettui.component.widgets.button(allocator, .{ .label = body });
 }
 
 fn renderHeading(stdout: *std.fs.File, allocator: std.mem.Allocator, text: []const u8, attrs: zettui.dom.StyleAttributes) !void {

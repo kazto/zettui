@@ -1,27 +1,30 @@
-const base = @import("component/base.zig");
+const base_mod = @import("component/base.zig");
 const widgets_mod = @import("component/widgets.zig");
-const options = @import("component/options.zig");
+const options_mod = @import("component/options.zig");
 const events = @import("component/events.zig");
 const decorators_mod = @import("component/decorators.zig");
 
-pub const Component = base.Component;
-pub const ComponentBase = base.ComponentBase;
-pub const ComponentDecorator = base.ComponentDecorator;
+pub const base = base_mod;
+pub const options = options_mod;
 
-pub const ButtonOptions = options.ButtonOptions;
-pub const MenuOptions = options.MenuOptions;
-pub const InputOptions = options.InputOptions;
-pub const SliderOptions = options.SliderOptions;
-pub const WindowOptions = options.WindowOptions;
-pub const CheckboxOptions = options.CheckboxOptions;
-pub const ToggleOptions = options.ToggleOptions;
-pub const RadioOptions = options.RadioOptions;
-pub const DropdownOptions = options.DropdownOptions;
-pub const SplitOptions = options.SplitOptions;
-pub const SplitOrientation = options.SplitOrientation;
-pub const ModalOptions = options.ModalOptions;
-pub const CollapsibleOptions = options.CollapsibleOptions;
-pub const HoverOptions = options.HoverOptions;
+pub const Component = base_mod.Component;
+pub const ComponentBase = base_mod.ComponentBase;
+pub const ComponentDecorator = base_mod.ComponentDecorator;
+
+pub const ButtonOptions = options_mod.ButtonOptions;
+pub const MenuOptions = options_mod.MenuOptions;
+pub const InputOptions = options_mod.InputOptions;
+pub const SliderOptions = options_mod.SliderOptions;
+pub const WindowOptions = options_mod.WindowOptions;
+pub const CheckboxOptions = options_mod.CheckboxOptions;
+pub const ToggleOptions = options_mod.ToggleOptions;
+pub const RadioOptions = options_mod.RadioOptions;
+pub const DropdownOptions = options_mod.DropdownOptions;
+pub const SplitOptions = options_mod.SplitOptions;
+pub const SplitOrientation = options_mod.SplitOrientation;
+pub const ModalOptions = options_mod.ModalOptions;
+pub const CollapsibleOptions = options_mod.CollapsibleOptions;
+pub const HoverOptions = options_mod.HoverOptions;
 
 pub const Event = events.Event;
 pub const Mouse = events.Mouse;

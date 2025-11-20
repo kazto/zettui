@@ -37,7 +37,7 @@ pub fn main() !void {
     try renderGridAndFlows(&stdout, a);
 
     try stdout.writeAll("\nFocus + cursor decorators:\n");
-    try showcaseFocusAndCursor(&screen, stdout, a, Drawer.draw);
+    try showcaseFocusAndCursor(&screen, &stdout, a, Drawer.draw);
 }
 
 fn buildDashboard(ctx: *zettui.dom.RenderContext, allocator: std.mem.Allocator) !void {
@@ -73,7 +73,7 @@ fn buildDashboard(ctx: *zettui.dom.RenderContext, allocator: std.mem.Allocator) 
 
     const footer = zettui.dom.elements.hbox(&[_]zettui.dom.Node{
         try zettui.dom.elements.styleOwned(allocator, zettui.dom.elements.text("Ready"), .{ .fg = 0x34D399 }),
-        zettui.dom.elements.filler(),
+        zettui.dom.elements.filler(1),
         try zettui.dom.elements.styleOwned(allocator, zettui.dom.elements.text("Press Q to quit"), .{ .fg = 0xF472B6 }),
     });
 

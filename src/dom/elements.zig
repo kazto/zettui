@@ -205,6 +205,10 @@ pub fn flexGrowShrink(grow: f32, shrink: f32) node.Node {
     return .{ .filler = .{ .grow = grow, .shrink = shrink } };
 }
 
+pub fn fillerDefault() node.Node {
+    return filler(1);
+}
+
 pub fn focusPtr(child: *const node.Node, pos: node.FocusPosition) node.Node {
     return .{ .focus = .{ .child = child, .position = pos } };
 }

@@ -23,7 +23,7 @@ fn renderRendererDecorator(stdout: *std.fs.File, allocator: std.mem.Allocator) !
     try stdout.writeAll("\n");
 }
 
-fn customRenderer(ctx: anytype) anyerror!void {
+fn customRenderer(ctx: zettui.component.widgets.RendererContext) anyerror!void {
     try ctx.stdout.writeAll("[renderer decorator]\n");
     try ctx.stdout.writeAll("Child component below:\n");
     try ctx.child.render();

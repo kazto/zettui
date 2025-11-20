@@ -36,11 +36,13 @@ fn renderCheckboxes(stdout: *std.fs.File, allocator: std.mem.Allocator) !void {
 fn renderToggles(stdout: *std.fs.File, allocator: std.mem.Allocator) !void {
     try renderHeading(stdout, allocator, "-- Toggles --", .{ .fg = 0x34D399 });
     const toggle_component = try zettui.component.widgets.toggle(allocator, .{
-        .label = "Dark mode",
+        .on_label = "Dark mode: on",
+        .off_label = "Dark mode: off",
         .on = true,
     });
     const framed = try zettui.component.widgets.toggleFramed(allocator, .{
-        .label = "Notifications",
+        .on_label = "Notifications: on",
+        .off_label = "Notifications: off",
         .on = false,
     }, .{ .title = "Profile" });
     try toggle_component.render();
