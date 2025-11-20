@@ -26,6 +26,9 @@ pub fn maybe(allocator: std.mem.Allocator, child: base.Component, active: bool) 
     const state_ptr = try allocator.create(MaybeState);
     state_ptr.* = .{ .child = child, .active = active };
 
+    const owned_children = try allocator.alloc(base.Component, 1);
+    owned_children[0] = child;
+
     const component_ptr = try allocator.create(base.ComponentBase);
     component_ptr.* = base.ComponentBase{
         .text_cache = "",
@@ -33,7 +36,7 @@ pub fn maybe(allocator: std.mem.Allocator, child: base.Component, active: bool) 
         .renderFn = maybeRender,
         .eventFn = maybeEvent,
         .animationFn = null,
-        .children = &[_]base.Component{child},
+        .children = owned_children,
         .focus_index = 0,
     };
     return .{ .base = component_ptr };
@@ -113,6 +116,9 @@ pub fn underlineDecorator(allocator: std.mem.Allocator, child: base.Component, o
     const state_ptr = try allocator.create(UnderlineState);
     state_ptr.* = .{ .child = child, .option = option };
 
+    const owned_children = try allocator.alloc(base.Component, 1);
+    owned_children[0] = child;
+
     const component_ptr = try allocator.create(base.ComponentBase);
     component_ptr.* = base.ComponentBase{
         .text_cache = "",
@@ -120,7 +126,7 @@ pub fn underlineDecorator(allocator: std.mem.Allocator, child: base.Component, o
         .renderFn = underlineRender,
         .eventFn = underlineEvent,
         .animationFn = null,
-        .children = &[_]base.Component{child},
+        .children = owned_children,
         .focus_index = 0,
     };
     return .{ .base = component_ptr };
