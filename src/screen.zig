@@ -3,6 +3,8 @@ const surface = @import("screen/screen.zig");
 const color = @import("screen/color.zig");
 const terminal = @import("screen/terminal.zig");
 const strings = @import("screen/strings.zig");
+const legacy = @import("screen/legacy.zig");
+const utils = @import("screen/utils.zig");
 
 pub const Image = image.Image;
 pub const Screen = surface.Screen;
@@ -16,3 +18,5 @@ pub const TerminalInfo = terminal.TerminalInfo;
 pub const Terminal = terminal.Terminal;
 
 pub const utf8 = strings;
+pub const legacy_strings = legacy;
+pub const util = utils;

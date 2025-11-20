@@ -24,7 +24,7 @@ Tasks derived from `docs/specification.md` to track coverage and implementation 
   - [x] `graph`
   - [x] `canvas`
   - [x] border helpers (frame decorator)
-- [ ] Support container combinators (`hbox`, `vbox`, `dbox`, `flexbox`) plus flow utilities (`flex*`, `filler`, `size`, `frame`, `focus`, cursor modifiers) returning fully configured `Node` values.
+- [x] Support container combinators (`hbox`, `vbox`, `dbox`, `flexbox`) plus flow utilities (`flex*`, `filler`, `size`, `frame`, `focus`, cursor modifiers) returning fully configured `Node` values.
   - [x] `hbox`
   - [x] `vbox`
   - [x] `dbox`
@@ -52,7 +52,7 @@ Tasks derived from `docs/specification.md` to track coverage and implementation 
 - [x] Maintain `Component` factory helpers and `ComponentDecorator` wrappers for composition patterns.
 
 ### Widgets
-- [ ] Deliver interactive widgets (buttons, checkboxes, text inputs with placeholder/password/multiline, sliders, radio boxes, dropdowns, toggles, menus including animated, resizable splits, modals, collapsibles, hover wrappers, windows).
+- [x] Deliver interactive widgets (buttons, checkboxes, text inputs with placeholder/password/multiline, sliders, radio boxes, dropdowns, toggles, menus including animated, resizable splits, modals, collapsibles, hover wrappers, windows).
   - [x] Button
   - [x] Checkbox
   - [x] Toggle
@@ -80,7 +80,7 @@ Tasks derived from `docs/specification.md` to track coverage and implementation 
   - [x] `SliderOptions`
   - [x] `RadioOptions`
 
-- [ ] Ensure `events.zig` enumerates keyboard characters, modifiers, function keys, mouse events, and cursor state.
+- [x] Ensure `events.zig` enumerates keyboard characters, modifiers, function keys, mouse events, and cursor state.
   - [x] Keyboard characters and modifiers
   - [x] Function keys (F1-F12)
   - [x] Arrow keys (up, down, left, right)
@@ -102,5 +102,5 @@ Tasks derived from `docs/specification.md` to track coverage and implementation 
 
 ### Strings & Utilities
 - [x] Preserve UTF-8 helpers for conversion, width computation, glyph splitting, and cell-to-glyph mapping between `[]const u8` buffers.
-- [ ] Maintain legacy wide-string APIs under `dom/screen/legacy.zig` gated by build options.
-- [ ] Ensure utility helpers (`AutoReset`, `Ref`/`ConstRef`, `ConstStringRef`, `ConstStringListRef`, `Receiver`/`Sender`, Windows macro guards) remain available and documented.
+- [x] Maintain legacy wide-string APIs under `dom/screen/legacy.zig` gated by build options.
+- [x] Ensure utility helpers (`AutoReset`, `Ref`/`ConstRef`, `ConstStringRef`, `ConstStringListRef`, `Receiver`/`Sender`, Windows macro guards) remain available and documented.
