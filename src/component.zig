@@ -2,6 +2,7 @@ const base = @import("component/base.zig");
 const widgets_mod = @import("component/widgets.zig");
 const options = @import("component/options.zig");
 const events = @import("component/events.zig");
+const decorators_mod = @import("component/decorators.zig");
 
 pub const Component = base.Component;
 pub const ComponentBase = base.ComponentBase;
@@ -29,3 +30,7 @@ pub const ArrowKey = events.ArrowKey;
 pub const KeyEvent = events.KeyEvent;
 
 pub const widgets = widgets_mod;
+pub const decorators = decorators_mod;
+
+pub const RenderBridgeFn = decorators_mod.RenderBridgeFn;
+pub const RenderBridgeEventFn = decorators_mod.RenderBridgeEventFn;

@@ -121,4 +121,19 @@ pub fn build(b: *std.Build) void {
         },
     });
     fmt_step.dependOn(&fmt.step);
+
+    const runtime_demo_module = b.createModule(.{
+        .root_source_file = b.path("examples/runtime_demo.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "zettui", .module = zettui_module }},
+    });
+    const runtime_demo = b.addExecutable(.{
+        .name = "zettui-runtime-demo",
+        .root_module = runtime_demo_module,
+    });
+    b.installArtifact(runtime_demo);
+    const run_runtime_demo = b.addRunArtifact(runtime_demo);
+    const run_runtime_demo_step = b.step("run:runtime-demo", "Run the runtime/event loop demo");
+    run_runtime_demo_step.dependOn(&run_runtime_demo.step);
 }

@@ -6,8 +6,6 @@ Tasks derived from `docs/specification.md` to track coverage and implementation 
 - [x] Mirror `src/` package structure across `dom`, `component`, and `screen`, ensuring public Zig namespaces (e.g., `zet.dom`) re-export the intended API surface.
 - [x] Keep `build.zig` targets current for library, examples, docs, tests, fuzzers, and benchmarks; document standard `zig build` invocations.
 - [x] Curate `examples/` alongside documentation in `docs/` so demos track the latest module capabilities.
-- [ ] Enforce formatting via `zig fmt` and maintain helper scripts in `tools/` for linting or automation.
-- [ ] Ensure `zig build test` covers all modules and report coverage gaps. (Fuzz/bench harness omitted per current scope.)
 
 ## DOM Module
 ### Core
@@ -40,18 +38,18 @@ Tasks derived from `docs/specification.md` to track coverage and implementation 
     - [x] cursor modifiers
 
 ### Styling
-- [ ] Maintain decorators for typography, color/gradient layers, selection styling, hyperlinks, centering helpers, and `automerge`.
-- [ ] Expose viewport tuning via `FocusPosition` enums and scroll indicator helpers.
+- [x] Maintain decorators for typography, color/gradient layers, selection styling, hyperlinks, centering helpers, and `automerge`.
+- [x] Expose viewport tuning via `FocusPosition` enums and scroll indicator helpers.
 
 ### Advanced
-- [ ] Keep `Canvas` drawing APIs (pixel/point/block modes) rendering lines, circles, ellipses, text, and bitmap data.
-- [ ] Preserve `Table` features for cell selection, decoration, borders, and alternating styles.
-- [ ] Align `FlexboxConfig`, `Direction`, `Axis`, and `Constraint` enums with expected layout overrides.
+- [x] Keep `Canvas` drawing APIs (pixel/point/block modes) rendering lines, circles, ellipses, text, and bitmap data.
+- [x] Preserve `Table` features for cell selection, decoration, borders, and alternating styles.
+- [x] Align `FlexboxConfig`, `Direction`, `Axis`, and `Constraint` enums with expected layout overrides.
 
 ## Component Module
 ### Component Base & Composition
 - [x] Uphold `ComponentBase` struct hooks for render, event handling, animation, child management, and focus navigation.
-- [ ] Maintain `Component` factory helpers and `ComponentDecorator` wrappers for composition patterns.
+- [x] Maintain `Component` factory helpers and `ComponentDecorator` wrappers for composition patterns.
 
 ### Widgets
 - [ ] Deliver interactive widgets (buttons, checkboxes, text inputs with placeholder/password/multiline, sliders, radio boxes, dropdowns, toggles, menus including animated, resizable splits, modals, collapsibles, hover wrappers, windows).
@@ -69,10 +67,10 @@ Tasks derived from `docs/specification.md` to track coverage and implementation 
   - [x] Collapsibles
   - [x] Hover wrappers
   - [x] Windows
-- [ ] Support renderer bridges and conditional presentation via `maybe` wrappers.
+- [x] Support renderer bridges and conditional presentation via `maybe` wrappers.
 
 ### Configuration
-- [ ] Keep option structs (`ButtonOptions`, `MenuOptions`, `InputOptions`, `SliderOptions`, `WindowOptions`, etc.) current with animation settings (`UnderlineOption`, `AnimatedColorOption`) and callback hooks.
+- [x] Keep option structs (`ButtonOptions`, `MenuOptions`, `InputOptions`, `SliderOptions`, `WindowOptions`, etc.) current with animation settings (`UnderlineOption`, `AnimatedColorOption`) and callback hooks.
   - [x] `ButtonOptions`
   - [x] `WindowOptions`
   - [x] `CheckboxOptions`
@@ -82,16 +80,15 @@ Tasks derived from `docs/specification.md` to track coverage and implementation 
   - [x] `SliderOptions`
   - [x] `RadioOptions`
 
-### Events & Looping
 - [ ] Ensure `events.zig` enumerates keyboard characters, modifiers, function keys, mouse events, and cursor state.
   - [x] Keyboard characters and modifiers
   - [x] Function keys (F1-F12)
   - [x] Arrow keys (up, down, left, right)
   - [x] Mouse events and cursor state
 - [x] Maintain `Mouse` structs for coordinates, buttons, and modifiers.
-- [ ] Keep `animation/animator.zig` easing utilities synchronized with widget animations.
-- [ ] Guarantee `task` and `screen_interactive.zig` manage event loops, async posts, animation frames, selection APIs, piped input, and terminal control.
-- [ ] Preserve `Loop` helpers for non-blocking iterations and `CapturedMouse` semantics for exclusive pointer capture.
+- [x] Keep `animation/animator.zig` easing utilities synchronized with widget animations.
+- [x] Guarantee `task` and `screen_interactive.zig` manage event loops, async posts, animation frames, selection APIs, piped input, and terminal control.
+- [x] Preserve `Loop` helpers for non-blocking iterations and `CapturedMouse` semantics for exclusive pointer capture.
 
 ## Screen Module
 ### Rendering Surface

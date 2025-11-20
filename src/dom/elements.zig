@@ -1,5 +1,6 @@
 const std = @import("std");
 const node = @import("node.zig");
+const image = @import("../screen/image.zig");
 
 pub fn empty() node.Node {
     return .{ .empty = {} };
@@ -7,6 +8,48 @@ pub fn empty() node.Node {
 
 pub fn text(content: []const u8) node.Node {
     return .{ .text = .{ .content = content } };
+}
+
+fn styledNode(child: *const node.Node, override: node.StyleOverride) node.Node {
+    return .{ .styled = .{ .child = child, .style = override } };
+}
+
+fn styledOwned(allocator: std.mem.Allocator, child: node.Node, override: node.StyleOverride) !node.Node {
+    const ptr = try allocator.create(node.Node);
+    ptr.* = child;
+    return styledNode(ptr, override);
+}
+
+pub fn bold(child: *const node.Node) node.Node {
+    return styledNode(child, .{ .style_flags = image.StyleFlags.bold });
+}
+
+pub fn italic(child: *const node.Node) node.Node {
+    return styledNode(child, .{ .style_flags = image.StyleFlags.italic });
+}
+
+pub fn underline(child: *const node.Node) node.Node {
+    return styledNode(child, .{ .style_flags = image.StyleFlags.underline });
+}
+
+pub fn color(child: *const node.Node, fg: u24) node.Node {
+    return styledNode(child, .{ .fg = fg });
+}
+
+pub fn bgColor(child: *const node.Node, bg: u24) node.Node {
+    return styledNode(child, .{ .bg = bg });
+}
+
+pub fn hyperlink(child: *const node.Node, url: []const u8) node.Node {
+    return styledNode(child, .{ .hyperlink = url });
+}
+
+pub fn styledPtr(child: *const node.Node, override: node.StyleOverride) node.Node {
+    return styledNode(child, override);
+}
+
+pub fn styledOwnedNode(allocator: std.mem.Allocator, child: node.Node, override: node.StyleOverride) !node.Node {
+    return styledOwned(allocator, child, override);
 }
 
 pub fn vbox(children: []const node.Node) node.Node {
@@ -118,6 +161,20 @@ test "flex helpers configure filler grow shrink" {
     try std.testing.expectEqual(@as(f32, 0.25), tuned_req.flex_shrink);
 }
 
+test "color decorator stores fg override" {
+    const child = text("fg");
+    const styled = color(&child, 0xFF00FF);
+    try std.testing.expect(styled == .styled);
+    try std.testing.expectEqual(@as(u24, 0xFF00FF), styled.styled.style.fg.?);
+}
+
+test "center requirement extends width" {
+    const child = text("ok");
+    const centered = centerPtr(&child, 8);
+    const req = centered.computeRequirement();
+    try std.testing.expectEqual(@as(usize, 8), req.min_width);
+}
+
 pub fn sizePtr(child: *const node.Node, width: usize, height: usize) node.Node {
     return .{ .size = .{ .child = child, .width = width, .height = height } };
 }
@@ -155,11 +212,15 @@ pub fn focusOwned(allocator: std.mem.Allocator, child: node.Node, pos: node.Focu
 }
 
 pub fn flexboxRow(children: []const node.Node, gap: usize) node.Node {
-    return .{ .flexbox = .{ .children = children, .direction = .row, .gap = gap } };
+    return .{ .flexbox = .{ .children = children, .direction = .row, .gap = gap, .config = .{ .direction = .row, .gap = gap } } };
 }
 
 pub fn flexboxColumn(children: []const node.Node, gap: usize) node.Node {
-    return .{ .flexbox = .{ .children = children, .direction = .column, .gap = gap } };
+    return .{ .flexbox = .{ .children = children, .direction = .column, .gap = gap, .config = .{ .direction = .column, .gap = gap } } };
+}
+
+pub fn flexboxConfigured(children: []const node.Node, config: node.FlexboxConfig) node.Node {
+    return .{ .flexbox = .{ .children = children, .direction = config.direction orelse .row, .gap = config.gap orelse 0, .config = config } };
 }
 
 pub fn dbox(children: []const node.Node) node.Node {
@@ -174,4 +235,45 @@ pub fn cursorOwned(allocator: std.mem.Allocator, child: node.Node, index: usize)
     const ptr = try allocator.create(node.Node);
     ptr.* = child;
     return .{ .cursor = .{ .child = ptr, .index = index } };
+}
+
+pub fn scrollIndicatorPtr(child: ?*const node.Node, indicator: node.ScrollIndicator) node.Node {
+    return .{ .scroll = .{ .child = child, .indicator = indicator } };
+}
+
+pub fn scrollIndicatorOwned(allocator: std.mem.Allocator, child: ?node.Node, indicator: node.ScrollIndicator) !node.Node {
+    var ptr: ?*const node.Node = null;
+    if (child) |c| {
+        const new_ptr = try allocator.create(node.Node);
+        new_ptr.* = c;
+        ptr = new_ptr;
+    }
+    return scrollIndicatorPtr(ptr, indicator);
+}
+
+pub fn centerPtr(child: *const node.Node, width: usize) node.Node {
+    return .{ .center = .{ .child = child, .width = width } };
+}
+
+pub fn centerOwned(allocator: std.mem.Allocator, child: node.Node, width: usize) !node.Node {
+    const ptr = try allocator.create(node.Node);
+    ptr.* = child;
+    return centerPtr(ptr, width);
+}
+
+pub fn automerge(children: []const node.Node) node.Node {
+    return .{ .automerge = .{ .children = children } };
+}
+
+pub fn automergeOwned(allocator: std.mem.Allocator, children: []const node.Node) !node.Node {
+    const copy = try allocator.dupe(node.Node, children);
+    return .{ .automerge = .{ .children = copy } };
+}
+
+pub fn table(headers: []const []const u8, rows: []const []const []const u8) node.Node {
+    return .{ .table = .{ .headers = headers, .rows = rows } };
+}
+
+pub fn tableSelectable(headers: []const []const u8, rows: []const []const []const u8, selected_row: ?usize, selected_column: ?usize) node.Node {
+    return .{ .table = .{ .headers = headers, .rows = rows, .selected_row = selected_row, .selected_column = selected_column } };
 }
