@@ -1405,6 +1405,22 @@ pub const Canvas = struct {
     }
 };
 
+pub const CanvasAnimation = struct {
+    frames: []const Canvas = &[_]Canvas{},
+    index: usize = 0,
+
+    pub fn current(self: CanvasAnimation) Canvas {
+        if (self.frames.len == 0) return Canvas{};
+        const pos = self.index % self.frames.len;
+        return self.frames[pos];
+    }
+
+    pub fn advance(self: *CanvasAnimation) void {
+        if (self.frames.len == 0) return;
+        self.index = (self.index + 1) % self.frames.len;
+    }
+};
+
 pub const GridBox = struct {
     cells: [][]const Node = &[_][]const Node{},
     column_gap: usize = 1,
@@ -1437,6 +1453,26 @@ pub const GridBox = struct {
             .min_width = max_width,
             .min_height = total_height,
         };
+    }
+
+    pub fn render(self: GridBox, ctx: *RenderContext) anyerror!void {
+        var y = ctx.origin_y;
+        for (self.cells, 0..) |row, row_idx| {
+            var x = ctx.origin_x;
+            var row_height: usize = 0;
+            for (row) |cell| {
+                const req = cell.computeRequirement();
+                var child_ctx = ctx.*;
+                child_ctx.origin_x = x;
+                child_ctx.origin_y = y;
+                try cell.render(&child_ctx);
+                x += @as(i32, @intCast(req.min_width + self.column_gap));
+                row_height = @max(row_height, req.min_height);
+            }
+            if (row_idx + 1 < self.cells.len) {
+                y += @as(i32, @intCast(row_height + self.row_gap));
+            }
+        }
     }
 };
 
