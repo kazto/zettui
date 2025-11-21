@@ -13,6 +13,8 @@ pub fn main() !void {
     try renderMenuNavigation(&stdout, a);
     try stdout.writeAll("\n");
     try renderScrollbarDemo(&stdout, a);
+    try stdout.writeAll("\n");
+    try renderFocusCursorSelection(&stdout, a);
 }
 
 fn renderMenuNavigation(stdout: *std.fs.File, allocator: std.mem.Allocator) !void {
@@ -48,6 +50,37 @@ fn renderScrollbarDemo(stdout: *std.fs.File, allocator: std.mem.Allocator) !void
     _ = scrollbar_component.onEvent(.{ .key = .{ .arrow_key = .down } });
     _ = scrollbar_component.onEvent(.{ .key = .{ .arrow_key = .down } });
     try scrollbar_component.render();
+    try stdout.writeAll("\n");
+}
+
+fn renderFocusCursorSelection(stdout: *std.fs.File, allocator: std.mem.Allocator) !void {
+    try renderHeading(stdout, allocator, "-- Focus / cursor / selection signals --", .{ .fg = 0x22D3EE });
+    const hover_child = try zettui.component.widgets.button(allocator, .{ .label = "Hover target" });
+    const hover_component = try zettui.component.widgets.hoverWrapper(allocator, hover_child, .{
+        .hover_text = "(hovered)",
+        .idle_text = "(idle)",
+    });
+    try stdout.writeAll("Idle hover wrapper:\n");
+    try hover_component.render();
+    try stdout.writeAll("\nMouse enters -> hovered:\n");
+    _ = hover_component.onEvent(.{ .mouse = .{ .position = .{}, .buttons = .{} } });
+    try hover_component.render();
+    try stdout.writeAll("\nMouse leaves (custom event):\n");
+    _ = hover_component.onEvent(.{ .custom = .{ .tag = "hover:leave" } });
+    try hover_component.render();
+    try stdout.writeAll("\n\nCursor tracking in multiline input:\n");
+    const textarea = try zettui.component.widgets.textInput(allocator, .{
+        .placeholder = "Logs...",
+        .multiline = true,
+        .visible_lines = 2,
+        .bordered = true,
+    });
+    _ = textarea.onEvent(.{ .key = .{ .codepoint = 'A' } });
+    _ = textarea.onEvent(.{ .key = .{ .codepoint = 'B' } });
+    _ = textarea.onEvent(.{ .key = .{ .codepoint = '\n' } });
+    _ = textarea.onEvent(.{ .key = .{ .codepoint = 'C' } });
+    _ = textarea.onEvent(.{ .key = .{ .arrow_key = .left } });
+    try textarea.render();
     try stdout.writeAll("\n");
 }
 

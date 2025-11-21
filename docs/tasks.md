@@ -155,7 +155,7 @@ The checklist formerly in `docs/tasks-ver2.md` now resides here. Cross-reference
 > Update both specification and parity sections whenever a new feature, example, or doc is added.
 
 #### Pending Work Items
-- DOM: Implement outstanding parity items marked `Pending` in `docs/examples/ftxui-mapping.md` (`dom/dbox.cpp`, `dom/table.cpp`, `color_info_palette256.cpp`, `color_truecolor_HSV.cpp`, `style_hyperlink.cpp`, `gauge_direction.cpp`).
-- Component: Finish remaining samples (`selection.cpp`, `slider_rgb.cpp`, `menu_in_frame(_horizontal).cpp`, `resizable_split_clamp.cpp`, `focus.cpp`, `focus_cursor.cpp`) and update `examples/component/*` plus any missing API hooks.
-- Screen: Expand `examples/screen/*` to include richer `ScreenInteractive` behavior, capturing `custom_loop`, `nested_screen`, and restored IO parity, then mark the entries as Done.
-- Integration: Extend `examples/integration/gallery.zig` / `homescreen.zig` with package-manager style trees, resizable clamp indicators, and other FTXUI hybrid demos still marked pending.
+- [x] DOM: Implement outstanding parity items marked `Pending` in `docs/examples/ftxui-mapping.md` (dbox/table/vertical gauge/256-color/HSV/hyperlink samples now covered).
+- [ ] Component: Finish remaining samples (`selection.cpp` in selectors) and update `examples/component/*` plus any missing API hooks.
+- [ ] Screen: Expand `examples/screen/*` to include richer `ScreenInteractive` behavior, capturing `custom_loop`, `nested_screen`, and restored IO parity, then mark the entries as Done.
+- [ ] Integration: Extend `examples/integration/gallery.zig` / `homescreen.zig` with package-manager style trees, resizable clamp indicators, and other FTXUI hybrid demos still marked pending.

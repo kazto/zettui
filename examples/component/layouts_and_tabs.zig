@@ -47,6 +47,14 @@ fn renderSplit(stdout: *std.fs.File, allocator: std.mem.Allocator) !void {
     });
     try split_component.render();
     try stdout.writeAll("\n");
+
+    try stdout.writeAll("Clamp to min via custom event:\n");
+    _ = split_component.onEvent(.{ .custom = .{ .tag = "split:clamp:min" } });
+    try split_component.render();
+    try stdout.writeAll("\nClamp to max via custom event:\n");
+    _ = split_component.onEvent(.{ .custom = .{ .tag = "split:clamp:max" } });
+    try split_component.render();
+    try stdout.writeAll("\n");
 }
 
 fn renderHeading(stdout: *std.fs.File, allocator: std.mem.Allocator, text: []const u8, attrs: zettui.dom.StyleAttributes) !void {

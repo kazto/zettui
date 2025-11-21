@@ -35,11 +35,11 @@ fn renderParagraphs(ctx: *zettui.dom.RenderContext, stdout: *std.fs.File) !void 
 
 fn renderTextFlow(ctx: *zettui.dom.RenderContext, stdout: *std.fs.File, allocator: std.mem.Allocator) !void {
     try stdout.writeAll("-- Links & inline emphasis --\n");
-    const link = try zettui.dom.elements.styleOwned(
-        allocator,
-        zettui.dom.elements.text("https://github.com/kazto/zettui"),
-        .{ .underline = true, .fg = 0x3B82F6 },
-    );
+    const link_target = zettui.dom.elements.text("https://github.com/kazto/zettui");
+    const link = try zettui.dom.elements.styleOwned(allocator, zettui.dom.elements.hyperlink(&link_target, "https://github.com/kazto/zettui"), .{
+        .underline = true,
+        .fg = 0x3B82F6,
+    });
     const emphasis = try zettui.dom.elements.styleOwned(
         allocator,
         zettui.dom.elements.text("emphasis"),
@@ -73,5 +73,6 @@ fn makeContext(stdout: *std.fs.File, allocator: std.mem.Allocator) zettui.dom.Re
     return .{
         .sink = .{ .user_data = @as(*anyopaque, @ptrCast(stdout)), .writeAll = SinkWriter.write },
         .allocator = allocator,
+        .allow_hyperlinks = true,
     };
 }

@@ -36,6 +36,9 @@ pub fn main() !void {
     try stdout.writeAll("\nGridbox + flows + tree demos:\n");
     try renderGridAndFlows(&stdout, a);
 
+    try stdout.writeAll("\nDouble-box + table demos:\n");
+    try renderDboxAndTable(&stdout, a);
+
     try stdout.writeAll("\nFocus + cursor decorators:\n");
     try showcaseFocusAndCursor(&screen, &stdout, a, Drawer.draw);
 }
@@ -127,6 +130,37 @@ fn renderGridAndFlows(stdout: *std.fs.File, allocator: std.mem.Allocator) !void 
     };
     const html_like = try zettui.dom.elements.htmlLikeOwned(allocator, doc);
     try html_like.render(&ctx);
+    try stdout.writeAll("\n");
+}
+
+fn renderDboxAndTable(stdout: *std.fs.File, allocator: std.mem.Allocator) !void {
+    var ctx = makeSinkContext(stdout, allocator);
+
+    try stdout.writeAll("-- dbox overlay --\n");
+    const base_panel = try zettui.dom.elements.frameStyledOwned(
+        allocator,
+        zettui.dom.elements.paragraph("Base layer establishes the full area.", 32),
+        .{ .charset = .double, .fg = 0x60A5FA },
+    );
+    const overlay = try zettui.dom.elements.styleOwned(
+        allocator,
+        zettui.dom.elements.window("Overlay"),
+        .{ .fg = 0xF59E0B },
+    );
+    const overlay_box = try zettui.dom.elements.sizeOwned(allocator, overlay, 18, 5);
+    const overlayed = zettui.dom.elements.dbox(&[_]zettui.dom.Node{ base_panel, overlay_box });
+    try overlayed.render(&ctx);
+    try stdout.writeAll("\n");
+
+    try stdout.writeAll("-- table with selection --\n");
+    const headers = [_][]const u8{ "Name", "Status", "Latency" };
+    const rows = [_][]const []const u8{
+        &[_][]const u8{ "api", "online", "12ms" },
+        &[_][]const u8{ "worker", "degraded", "48ms" },
+        &[_][]const u8{ "db", "online", "8ms" },
+    };
+    const table = zettui.dom.elements.tableSelectable(&headers, &rows, 1, 0);
+    try table.render(&ctx);
     try stdout.writeAll("\n");
 }
 

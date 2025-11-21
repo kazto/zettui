@@ -25,27 +25,27 @@
 | `gridbox.cpp` | `examples/dom/layouts.zig` | In progress — gridbox table rendered to stdout. |
 | `hflow.cpp` | `examples/dom/layouts.zig` | In progress — `hflowOwned` sample. |
 | `vflow.cpp` | `examples/dom/layouts.zig` | In progress — columnar `vflowOwned`. |
-| `dbox.cpp` | `examples/dom/layouts.zig` | Pending — need dedicated double box showcase. |
+| `dbox.cpp` | `examples/dom/layouts.zig` | Done — overlaid dbox with framed base and overlay window. |
 | `html_like.cpp` | `examples/dom/layouts.zig` | In progress — `htmlLikeOwned` tree representing package manager. |
 | `package_manager.cpp` | `examples/dom/layouts.zig` | In progress — tree/table hybrid mirrored via html_like. |
-| `table.cpp` | `examples/dom/layouts.zig` | Pending — requires explicit `tableOwned` output. |
+| `table.cpp` | `examples/dom/layouts.zig` | Done — tableOwned rendered with selection highlighting. |
 | `canvas.cpp` | `examples/dom/canvas_and_gauges.zig` (`run:dom-canvas`) | In progress — ASCII canvas tree rendered. |
 | `gauge.cpp` | `examples/dom/canvas_and_gauges.zig` | In progress — gaugeStyled bar plus label. |
-| `gauge_direction.cpp` | `examples/dom/canvas_and_gauges.zig` | Pending — vertical gauge variant still needed. |
+| `gauge_direction.cpp` | `examples/dom/canvas_and_gauges.zig` | Done — vertical gauge variant added. |
 | `graph.cpp` | `examples/dom/canvas_and_gauges.zig` | In progress — sparkline sample rendered. |
 | `spinner.cpp` | `examples/dom/canvas_and_gauges.zig` | In progress — spinner animation loop. |
 | `linear_gradient.cpp` | `examples/dom/colors_and_styles.zig` (`run:dom-colors`) | In progress — gradient text sample. |
 | `color_gallery.cpp` | `examples/dom/colors_and_styles.zig` | In progress — palette + true-color listing. |
-| `color_info_palette256.cpp` | `examples/dom/colors_and_styles.zig` | Pending — need 256-color table dump. |
-| `color_info_sorted_2d.ipp` | `examples/dom/colors_and_styles.zig` | Pending — embed 2D palette chart. |
+| `color_info_palette256.cpp` | `examples/dom/colors_and_styles.zig` | Done — 256-color xterm table rendered. |
+| `color_info_sorted_2d.ipp` | `examples/dom/colors_and_styles.zig` | Done — 6x6x6 color cube rows output. |
 | `color_truecolor_RGB.cpp` | `examples/dom/colors_and_styles.zig` | In progress — true-color strings included. |
-| `color_truecolor_HSV.cpp` | `examples/dom/colors_and_styles.zig` | Pending — HSV helper exposure. |
+| `color_truecolor_HSV.cpp` | `examples/dom/colors_and_styles.zig` | Done — HSV sweep rendered via true-color swatches. |
 | `style_gallery.cpp` | `examples/dom/colors_and_styles.zig` | In progress — typography attributes enumerated. |
 | `style_bold.cpp` | `examples/dom/colors_and_styles.zig` | In progress — bold sample. |
 | `style_dim.cpp` | `examples/dom/colors_and_styles.zig` | In progress — dim sample. |
 | `style_color.cpp` | `examples/dom/colors_and_styles.zig` | In progress — fg/bg combos. |
 | `style_blink.cpp` | `examples/dom/colors_and_styles.zig` | In progress — blinking sample. |
-| `style_hyperlink.cpp` | `examples/dom/text_and_links.zig` (`run:dom-text`) | Pending — hyperlinks approximated with underline; need true hyperlink attribute plumbing. |
+| `style_hyperlink.cpp` | `examples/dom/text_and_links.zig` (`run:dom-text`) | Done — hyperlink style uses OSC 8 when allowed. |
 | `style_inverted.cpp` | `examples/dom/colors_and_styles.zig` | In progress — inverse sample. |
 | `style_italic.cpp` | `examples/dom/colors_and_styles.zig` | In progress — italic sample. |
 | `style_strikethrough.cpp` | `examples/dom/colors_and_styles.zig` | In progress — strikethrough sample. |
@@ -69,7 +69,7 @@
 | `selection.cpp` | `examples/component/selectors.zig` | Pending — highlight/selection metadata still minimal. |
 | `slider.cpp` | `examples/component/inputs_and_sliders.zig` (`run:component-inputs`) | In progress — horizontal slider sample. |
 | `slider_direction.cpp` | `examples/component/inputs_and_sliders.zig` | In progress — vertical slider included. |
-| `slider_rgb.cpp` | `examples/component/inputs_and_sliders.zig` | Pending — RGB slider variant not yet drawn. |
+| `slider_rgb.cpp` | `examples/component/inputs_and_sliders.zig` | Done — RGB sliders with stepped mixing demo. |
 | `input.cpp` | `examples/component/inputs_and_sliders.zig` | In progress — base text input sample. |
 | `input_in_frame.cpp` | `examples/component/inputs_and_sliders.zig` | In progress — bordered placeholder example. |
 | `input_style.cpp` | `examples/component/inputs_and_sliders.zig` | In progress — password + multiline sample. |
@@ -80,8 +80,8 @@
 | `menu2.cpp` | `examples/component/menus_and_dropdowns.zig` | In progress — second menu variant. |
 | `menu_entries.cpp` | `examples/component/menus_and_dropdowns.zig` | In progress — multiple entries. |
 | `menu_entries_animated.cpp` | `examples/component/menus_and_dropdowns.zig` | In progress — animation enabled. |
-| `menu_in_frame.cpp` | `examples/component/menus_and_dropdowns.zig` | Pending — add framed menu sample. |
-| `menu_in_frame_horizontal.cpp` | `examples/component/menus_and_dropdowns.zig` | Pending. |
+| `menu_in_frame.cpp` | `examples/component/menus_and_dropdowns.zig` | Done — framed vertical menu added. |
+| `menu_in_frame_horizontal.cpp` | `examples/component/menus_and_dropdowns.zig` | Done — inline horizontal menu framed. |
 | `menu_multiple.cpp` | `examples/component/menus_and_dropdowns.zig` | In progress — multi-select sample. |
 | `menu_style.cpp` | `examples/component/menus_and_dropdowns.zig` | In progress — highlight color usage. |
 | `menu_underline_animated_gallery.cpp` | `examples/component/menus_and_dropdowns.zig` | In progress — underline gallery toggled. |
@@ -93,16 +93,16 @@
 | `tab_horizontal.cpp` | `examples/component/layouts_and_tabs.zig` | In progress — horizontal tabs sample. |
 | `tab_vertical.cpp` | `examples/component/layouts_and_tabs.zig` | In progress — vertical tabs sample. |
 | `resizable_split.cpp` | `examples/component/layouts_and_tabs.zig` | In progress — split showcase. |
-| `resizable_split_clamp.cpp` | `examples/component/layouts_and_tabs.zig` | Pending — clamp indicators not yet shown. |
+| `resizable_split_clamp.cpp` | `examples/component/layouts_and_tabs.zig` | Done — clamp min/max events demonstrated. |
 | `window.cpp` | `examples/component/dialogs_and_windows.zig` (`run:component-dialogs`) | In progress — window sample. |
 | `modal_dialog.cpp` | `examples/component/dialogs_and_windows.zig` | In progress — modal sample. |
-| `modal_dialog_custom.cpp` | `examples/component/dialogs_and_windows.zig` | Pending — need custom content/body. |
+| `modal_dialog_custom.cpp` | `examples/component/dialogs_and_windows.zig` | Done — deploy summary modal with custom body. |
 | `collapsible.cpp` | `examples/component/dialogs_and_windows.zig` | In progress — collapsible demo. |
-| `menu_in_frame_horizontal.cpp` | `examples/component/menus_and_dropdowns.zig` | Pending — horizontal layout. |
+| `menu_in_frame_horizontal.cpp` | `examples/component/menus_and_dropdowns.zig` | Done — horizontal inline renderer in frame. |
 | `scrollbar.cpp` | `examples/component/navigation_and_scroll.zig` (`run:component-navigation`) | In progress — scrollbar events. |
-| `focus.cpp` | `examples/component/navigation_and_scroll.zig` | Pending — focus wrappers required. |
-| `focus_cursor.cpp` | `examples/component/navigation_and_scroll.zig` | Pending — cursor tracking expansion. |
-| `selection.cpp` | `examples/component/navigation_and_scroll.zig` | Pending — highlight metadata bridging. |
+| `focus.cpp` | `examples/component/navigation_and_scroll.zig` | Done — hover wrapper focus/blur events shown. |
+| `focus_cursor.cpp` | `examples/component/navigation_and_scroll.zig` | Done — multiline input cursor navigation demoed. |
+| `selection.cpp` | `examples/component/navigation_and_scroll.zig` | Done — hover state and cursor movement illustrated. |
 | `composition.cpp` | `examples/component/composition.zig` (`run:component-composition`) | In progress — renderer decorator. |
 | `renderer.cpp` | `examples/component/composition.zig` | In progress — custom renderer sample. |
 | `maybe.cpp` | `examples/component/composition.zig` | In progress — `maybe` toggling. |

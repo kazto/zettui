@@ -12,6 +12,8 @@ pub fn main() !void {
     try stdout.writeAll("\n");
     try renderMenuGallery(&stdout, a);
     try stdout.writeAll("\n");
+    try renderFramedMenus(&stdout, a);
+    try stdout.writeAll("\n");
     try renderMultiSelectMenu(&stdout, a);
     try stdout.writeAll("\n");
     try renderDropdowns(&stdout, a);
@@ -36,6 +38,30 @@ fn renderMenuGallery(stdout: *std.fs.File, allocator: std.mem.Allocator) !void {
         .selected_index = 2,
     }, menuCustomRenderer);
     try custom_menu.render();
+    try stdout.writeAll("\n");
+}
+
+fn renderFramedMenus(stdout: *std.fs.File, allocator: std.mem.Allocator) !void {
+    try renderHeading(stdout, allocator, "-- Menu in frame --", .{ .fg = 0x10B981 });
+    const labels = [_][]const u8{ "File", "Edit", "View", "Help" };
+    const menu_component = try zettui.component.widgets.menu(allocator, .{
+        .items = &labels,
+        .selected_index = 1,
+        .loop_navigation = true,
+        .underline_gallery = true,
+    });
+    const framed = try zettui.component.widgets.window(allocator, menu_component, .{ .title = "framed vertical menu" });
+    try framed.render();
+    try stdout.writeAll("\n");
+
+    try renderHeading(stdout, allocator, "-- Horizontal framed menu --", .{ .fg = 0xFCD34D });
+    const horizontal = try zettui.component.widgets.menuCustom(allocator, .{
+        .items = &labels,
+        .selected_index = 2,
+        .loop_navigation = true,
+    }, menuInlineRenderer);
+    const horizontal_framed = try zettui.component.widgets.window(allocator, horizontal, .{ .title = "inline menu" });
+    try horizontal_framed.render();
     try stdout.writeAll("\n");
 }
 
@@ -100,6 +126,17 @@ fn dropdownCustomRenderer(payload: zettui.component.options.DropdownRenderPayloa
     var buf: [128]u8 = undefined;
     const line = try std.fmt.bufPrint(&buf, "[custom dropdown] {s} {s}\n", .{ if (payload.is_open) "(open)" else "(closed)", label });
     try stdout.writeAll(line);
+}
+
+fn menuInlineRenderer(payload: zettui.component.options.MenuRenderPayload) anyerror!void {
+    var stdout = std.fs.File.stdout();
+    for (payload.items, 0..) |item, idx| {
+        const mark = if (idx == payload.selected_index) ">" else " ";
+        var buf: [96]u8 = undefined;
+        const segment = try std.fmt.bufPrint(&buf, "{s} {s}   ", .{ mark, item });
+        try stdout.writeAll(segment);
+    }
+    try stdout.writeAll("\n");
 }
 
 fn writeRepeating(stdout: *std.fs.File, ch: u8, count: usize) anyerror!void {

@@ -14,6 +14,8 @@ pub fn main() !void {
     try stdout.writeAll("\n");
     try renderModal(&stdout, a);
     try stdout.writeAll("\n");
+    try renderCustomModal(&stdout, a);
+    try stdout.writeAll("\n");
     try renderCollapsible(&stdout, a);
 }
 
@@ -33,6 +35,25 @@ fn renderModal(stdout: *std.fs.File, allocator: std.mem.Allocator) !void {
         .is_open = true,
         .dismissible = true,
         .width = 32,
+    });
+    try modal_component.render();
+    try stdout.writeAll("\n");
+}
+
+fn renderCustomModal(stdout: *std.fs.File, allocator: std.mem.Allocator) !void {
+    try renderHeading(stdout, allocator, "-- Modal dialog (custom body) --", .{ .fg = 0x22D3EE });
+    const headline = try zettui.component.widgets.button(allocator, .{ .label = "Review deploy summary", .visual = .primary });
+    const details = try zettui.component.widgets.button(allocator, .{ .label = "• Tests: passed\n• Checks: green\n• Owner: ops", .frame = .inline_frame });
+    const actions = try zettui.component.widgets.container(allocator, &[_]zettui.component.base.Component{
+        try zettui.component.widgets.button(allocator, .{ .label = "Approve", .visual = .success }),
+        try zettui.component.widgets.button(allocator, .{ .label = "Reject", .visual = .danger }),
+    });
+    const body = try zettui.component.widgets.container(allocator, &[_]zettui.component.base.Component{ headline, details, actions });
+    const modal_component = try zettui.component.widgets.modal(allocator, body, .{
+        .title = "Deploy ready?",
+        .is_open = true,
+        .dismissible = false,
+        .width = 40,
     });
     try modal_component.render();
     try stdout.writeAll("\n");

@@ -34,6 +34,18 @@ fn renderGauge(ctx: *zettui.dom.RenderContext, stdout: *std.fs.File) !void {
     });
     try download.render(ctx);
     try stdout.writeAll("\n");
+
+    try stdout.writeAll("-- Vertical gauge variant --\n");
+    const vertical = zettui.dom.elements.gaugeStyled(0.42, .{
+        .label = "Battery",
+        .show_percentage = true,
+        .width = 8,
+        .orientation = .vertical,
+        .fill = '#',
+        .empty = '.',
+    });
+    try vertical.render(ctx);
+    try stdout.writeAll("\n");
 }
 
 fn renderCanvas(ctx: *zettui.dom.RenderContext, stdout: *std.fs.File) !void {

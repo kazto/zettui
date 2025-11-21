@@ -12,6 +12,8 @@ pub fn main() !void {
     try stdout.writeAll("\n");
     try renderSliders(&stdout, a);
     try stdout.writeAll("\n");
+    try renderRgbSliders(&stdout, a);
+    try stdout.writeAll("\n");
     try renderInputs(&stdout, a);
     try stdout.writeAll("\n");
     try simulateEvents(&stdout, a);
@@ -43,6 +45,47 @@ fn renderSliders(stdout: *std.fs.File, allocator: std.mem.Allocator) !void {
     try vertical_slider.render();
     try stdout.writeAll("\n\nSmall slider (10-20, step=1):\n");
     try small_slider.render();
+    try stdout.writeAll("\n");
+}
+
+fn renderRgbSliders(stdout: *std.fs.File, allocator: std.mem.Allocator) !void {
+    try renderHeading(stdout, allocator, "-- RGB sliders --", .{ .fg = 0x60A5FA });
+    const red = try zettui.component.widgets.slider(allocator, .{
+        .min = 0,
+        .max = 255,
+        .step = 51,
+        .horizontal = true,
+    });
+    const green = try zettui.component.widgets.slider(allocator, .{
+        .min = 0,
+        .max = 255,
+        .step = 34,
+        .horizontal = true,
+    });
+    const blue = try zettui.component.widgets.slider(allocator, .{
+        .min = 0,
+        .max = 255,
+        .step = 51,
+        .horizontal = true,
+    });
+
+    try stdout.writeAll("Initial RGB bars (all at 0):\n");
+    try red.render();
+    try stdout.writeAll("\n");
+    try green.render();
+    try stdout.writeAll("\n");
+    try blue.render();
+    try stdout.writeAll("\nApplying '+' steps to mix color (~R153 G102 B204):\n");
+
+    pumpSlider(red, 3, '+');
+    pumpSlider(green, 3, '+');
+    pumpSlider(blue, 4, '+');
+
+    try red.render();
+    try stdout.writeAll("\n");
+    try green.render();
+    try stdout.writeAll("\n");
+    try blue.render();
     try stdout.writeAll("\n");
 }
 
@@ -96,6 +139,13 @@ fn simulateEvents(stdout: *std.fs.File, allocator: std.mem.Allocator) !void {
     _ = input.onEvent(.{ .key = .{ .codepoint = 'i' } });
     try input.render();
     try stdout.writeAll("\n");
+}
+
+fn pumpSlider(component: zettui.component.base.Component, times: usize, key: u21) void {
+    var i: usize = 0;
+    while (i < times) : (i += 1) {
+        _ = component.onEvent(.{ .key = .{ .codepoint = key } });
+    }
 }
 
 fn renderHeading(stdout: *std.fs.File, allocator: std.mem.Allocator, text: []const u8, attrs: zettui.dom.StyleAttributes) !void {
