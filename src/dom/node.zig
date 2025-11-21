@@ -26,6 +26,8 @@ pub const AccessibilityRole = enum {
     heading,
     list,
     list_item,
+    table,
+    table_cell,
     container,
     none,
 };
@@ -148,6 +150,7 @@ pub const StyleAttributes = struct {
     bg: ?u24 = null,
     fg_palette: ?PaletteColor = null,
     bg_palette: ?PaletteColor = null,
+    hyperlink: ?[]const u8 = null,
 };
 
 pub fn paletteColorValue(color: PaletteColor) u24 {
@@ -204,6 +207,30 @@ fn frameCharset(style: FrameBorderStyle) FrameCharset {
             .horizontal = "\xE2\x95\x90",
             .vertical = "\xE2\x95\x91",
         },
+        .rounded => .{
+            .top_left = "\xE2\x94\x8D",
+            .top_right = "\xE2\x94\x91",
+            .bottom_left = "\xE2\x94\x95",
+            .bottom_right = "\xE2\x94\x99",
+            .horizontal = "\xE2\x94\x80",
+            .vertical = "\xE2\x94\x82",
+        },
+        .heavy => .{
+            .top_left = "\xE2\x95\x93",
+            .top_right = "\xE2\x95\x96",
+            .bottom_left = "\xE2\x95\x99",
+            .bottom_right = "\xE2\x95\x9C",
+            .horizontal = "\xE2\x95\xA1",
+            .vertical = "\xE2\x95\xA3",
+        },
+        .ascii => .{
+            .top_left = "+",
+            .top_right = "+",
+            .bottom_left = "+",
+            .bottom_right = "+",
+            .horizontal = "-",
+            .vertical = "|",
+        },
     };
 }
 
@@ -229,6 +256,7 @@ pub const RenderContext = struct {
     origin_y: i32 = 0,
     allocator: ?std.mem.Allocator = null,
     style: StyleAttributes = .{},
+    current_hyperlink: ?[]const u8 = null,
 };
 
 pub const Sink = struct {
@@ -237,6 +265,22 @@ pub const Sink = struct {
 };
 
 fn ctxWrite(ctx: *RenderContext, data: []const u8) !void {
+    if (ctx.allow_hyperlinks) {
+        if (ctx.current_hyperlink) |target| {
+            const esc_open = "\x1b]8;;";
+            const esc_close = "\x1b]8;;\x1b\\";
+            try ctxWriteRaw(ctx, esc_open);
+            try ctxWriteRaw(ctx, target);
+            try ctxWriteRaw(ctx, "\x1b\\");
+            try ctxWriteRaw(ctx, data);
+            try ctxWriteRaw(ctx, esc_close);
+            return;
+        }
+    }
+    try ctxWriteRaw(ctx, data);
+}
+
+fn ctxWriteRaw(ctx: *RenderContext, data: []const u8) !void {
     if (ctx.sink) |s| {
         try s.writeAll(s.user_data, data);
     } else {
@@ -245,6 +289,10 @@ fn ctxWrite(ctx: *RenderContext, data: []const u8) !void {
 }
 
 fn stylesEqual(a: StyleAttributes, b: StyleAttributes) bool {
+    const hyperlinks_equal = if (a.hyperlink) |h1| blk: {
+        if (b.hyperlink) |h2| break :blk std.mem.eql(u8, h1, h2);
+        break :blk false;
+    } else b.hyperlink == null;
     return a.bold == b.bold and
         a.italic == b.italic and
         a.underline == b.underline and
@@ -256,7 +304,8 @@ fn stylesEqual(a: StyleAttributes, b: StyleAttributes) bool {
         a.fg == b.fg and
         a.bg == b.bg and
         a.fg_palette == b.fg_palette and
-        a.bg_palette == b.bg_palette;
+        a.bg_palette == b.bg_palette and
+        hyperlinks_equal;
 }
 
 fn mergeStyles(base: StyleAttributes, overlay: StyleAttributes) StyleAttributes {
@@ -273,20 +322,21 @@ fn mergeStyles(base: StyleAttributes, overlay: StyleAttributes) StyleAttributes 
         .bg = overlay.bg orelse base.bg,
         .fg_palette = overlay.fg_palette orelse base.fg_palette,
         .bg_palette = overlay.bg_palette orelse base.bg_palette,
+        .hyperlink = overlay.hyperlink orelse base.hyperlink,
     };
 }
 
 fn applyAnsiStyle(ctx: *RenderContext, style: StyleAttributes) !void {
     if (ctx.drawer != null) return;
-    try ctxWrite(ctx, "\x1b[0m");
-    if (style.bold) try ctxWrite(ctx, "\x1b[1m");
-    if (style.dim) try ctxWrite(ctx, "\x1b[2m");
-    if (style.italic) try ctxWrite(ctx, "\x1b[3m");
-    if (style.underline) try ctxWrite(ctx, "\x1b[4m");
-    if (style.blink) try ctxWrite(ctx, "\x1b[5m");
-    if (style.inverse) try ctxWrite(ctx, "\x1b[7m");
-    if (style.strikethrough) try ctxWrite(ctx, "\x1b[9m");
-    if (style.underline_double) try ctxWrite(ctx, "\x1b[21m");
+    try ctxWriteRaw(ctx, "\x1b[0m");
+    if (style.bold) try ctxWriteRaw(ctx, "\x1b[1m");
+    if (style.dim) try ctxWriteRaw(ctx, "\x1b[2m");
+    if (style.italic) try ctxWriteRaw(ctx, "\x1b[3m");
+    if (style.underline) try ctxWriteRaw(ctx, "\x1b[4m");
+    if (style.blink) try ctxWriteRaw(ctx, "\x1b[5m");
+    if (style.inverse) try ctxWriteRaw(ctx, "\x1b[7m");
+    if (style.strikethrough) try ctxWriteRaw(ctx, "\x1b[9m");
+    if (style.underline_double) try ctxWriteRaw(ctx, "\x1b[21m");
     const fg_value = resolveColor(style.fg, style.fg_palette, 0xFFFFFF);
     const bg_value = resolveColor(style.bg, style.bg_palette, 0x000000);
     if (style.fg != null or style.fg_palette != null) try writeRgb(ctx, fg_value, true);
@@ -301,7 +351,7 @@ fn writeRgb(ctx: *RenderContext, color: u24, is_fg: bool) !void {
     const b = @as(u8, @intCast(color & 0xFF));
     const prefix: u8 = if (is_fg) 38 else 48;
     const seq = try std.fmt.bufPrint(&buf, "\x1b[{d};2;{d};{d};{d}m", .{ prefix, r, g, b });
-    try ctxWrite(ctx, seq);
+    try ctxWriteRaw(ctx, seq);
 }
 
 pub const Box = struct {
@@ -323,6 +373,7 @@ pub const Node = union(enum) {
     paragraph: Paragraph,
     graph: Graph,
     canvas: Canvas,
+    canvas_animation: CanvasAnimation,
     gradient_text: GradientText,
     gridbox: GridBox,
     frame: Frame,
@@ -333,6 +384,10 @@ pub const Node = union(enum) {
     dbox: Dbox,
     cursor: Cursor,
     style: StyleDecorator,
+    table: Table,
+    automerge: Automerge,
+    scroll: ScrollDecorator,
+    center: Center,
 
     pub fn computeRequirement(self: Node) Requirement {
         return switch (self) {
@@ -340,14 +395,26 @@ pub const Node = union(enum) {
                 .min_width = text_node.content.len,
                 .min_height = 1,
             },
-            .separator => Requirement{ .min_width = 1, .min_height = 1 },
+            .separator => |sep| separatorRequirement(sep),
             .window => |w| Requirement{ .min_width = 2 + w.title.len, .min_height = 1 },
             .gauge => |g| blkGauge: {
-                const extent = @max(@as(usize, 3), g.width);
-                break :blkGauge switch (g.orientation) {
-                    .horizontal => Requirement{ .min_width = extent, .min_height = 1 },
-                    .vertical => Requirement{ .min_width = 3, .min_height = extent },
-                };
+                const body = @max(@as(usize, 3), g.width);
+                const label_width: usize = if (g.label.len > 0) g.label.len + 1 else 0;
+                const percent_width: usize = if (g.show_percentage) 5 else 0;
+                var label_lines: usize = 0;
+                if (g.label.len > 0) label_lines = 1;
+                var percent_lines: usize = 0;
+                if (g.show_percentage) percent_lines = 1;
+                switch (g.orientation) {
+                    .horizontal => break :blkGauge Requirement{
+                        .min_width = body + label_width + percent_width,
+                        .min_height = 1,
+                    },
+                    .vertical => break :blkGauge Requirement{
+                        .min_width = 3 + label_width,
+                        .min_height = body + label_lines + percent_lines,
+                    },
+                }
             },
             .spinner => |s| Requirement{ .min_width = s.currentFrame().len, .min_height = 1 },
             .paragraph => |p| blk: {
@@ -365,6 +432,13 @@ pub const Node = union(enum) {
             .canvas => |c| blkCanvas: {
                 const dims = c.dimensions();
                 break :blkCanvas Requirement{
+                    .min_width = dims.width,
+                    .min_height = dims.height,
+                };
+            },
+            .canvas_animation => |anim| blkCanvasAnim: {
+                const dims = anim.current().dimensions();
+                break :blkCanvasAnim Requirement{
                     .min_width = dims.width,
                     .min_height = dims.height,
                 };
@@ -443,6 +517,37 @@ pub const Node = union(enum) {
             .style => |s| blkStyle: {
                 break :blkStyle s.child.*.computeRequirement();
             },
+            .table => |t| blkTable: {
+                const dims = t.bounds();
+                break :blkTable Requirement{
+                    .min_width = dims.width,
+                    .min_height = dims.height,
+                };
+            },
+            .automerge => |a| blkAuto: {
+                const dims = a.dimensions();
+                break :blkAuto Requirement{
+                    .min_width = dims.width,
+                    .min_height = dims.height,
+                };
+            },
+            .scroll => |s| blkScroll: {
+                var req = Requirement{};
+                if (s.child) |child| {
+                    req = child.*.computeRequirement();
+                }
+                req.min_height += if (s.indicator.top) 1 else 0;
+                req.min_height += if (s.indicator.bottom) 1 else 0;
+                req.min_width = @max(req.min_width, 1);
+                break :blkScroll req;
+            },
+            .center => |c| blkCenter: {
+                const child_req = c.child.*.computeRequirement();
+                break :blkCenter Requirement{
+                    .min_width = @max(child_req.min_width, c.width),
+                    .min_height = child_req.min_height,
+                };
+            },
             else => Requirement{},
         };
     }
@@ -452,6 +557,14 @@ pub const Node = union(enum) {
             .container => |*container_node| container_node.box = box,
             .flexbox => |*fb| fb.box = box,
             .dbox => |*db| db.box = box,
+            .center => |*c| {
+                const child = @constCast(c.child);
+                child.*.setBox(box);
+            },
+            .scroll => |*s| if (s.child) |child| {
+                const child_mut = @constCast(child);
+                child_mut.*.setBox(box);
+            },
             else => {},
         }
     }
@@ -472,8 +585,8 @@ pub const Node = union(enum) {
                     try ctxWrite(ctx, text_node.content);
                 }
             },
-            .separator => {
-                try ctxWrite(ctx, "---\n");
+            .separator => |sep| {
+                try renderSeparator(sep, ctx);
             },
             .window => |w| {
                 if (ctx.drawer != null) {
@@ -579,6 +692,10 @@ pub const Node = union(enum) {
             },
             .graph => |g| try g.render(ctx),
             .canvas => |c| try c.render(ctx),
+            .canvas_animation => |anim| {
+                const frame = anim.current();
+                try frame.render(ctx);
+            },
             .gradient_text => |g| try g.render(ctx),
             .gridbox => |g| try g.render(ctx),
             .custom => |renderer| try @call(.auto, renderer.callback, .{ renderer.user_data, ctx }),
@@ -661,18 +778,22 @@ pub const Node = union(enum) {
             .style => |s| {
                 const prev = ctx.style;
                 const next = mergeStyles(prev, s.attrs);
+                const prev_link = ctx.current_hyperlink;
+                ctx.current_hyperlink = next.hyperlink;
                 if (!stylesEqual(prev, next) and ctx.drawer == null) {
                     try applyAnsiStyle(ctx, next);
                 }
                 ctx.style = next;
                 errdefer {
                     ctx.style = prev;
+                    ctx.current_hyperlink = prev_link;
                     if (!stylesEqual(prev, next) and ctx.drawer == null) {
                         applyAnsiStyle(ctx, prev) catch {};
                     }
                 }
                 try s.child.*.render(ctx);
                 ctx.style = prev;
+                ctx.current_hyperlink = prev_link;
                 if (!stylesEqual(prev, next) and ctx.drawer == null) {
                     try applyAnsiStyle(ctx, prev);
                 }
@@ -751,6 +872,10 @@ pub const Node = union(enum) {
             .cursor => |c| {
                 if (c.child) |ch| try ch.*.render(ctx);
             },
+            .table => |t| try t.render(ctx),
+            .automerge => |a| try a.render(ctx),
+            .scroll => |s| try s.render(ctx),
+            .center => |c| try c.render(ctx),
             .container => |container_node| {
                 const kids = if (container_node.owned_children) |oc| oc else container_node.children;
                 if (ctx.drawer != null and ctx.allocator != null) {
@@ -863,6 +988,33 @@ pub const Node = union(enum) {
                 selection.setAccessibility(.text, "Canvas", "Custom drawing", "", "");
                 selection.setCursor(0, 0);
             },
+            .canvas_animation => |anim| {
+                _ = anim;
+                selection.setAccessibility(.text, "Canvas", "Animated drawing", "", "");
+                selection.setCursor(0, 0);
+            },
+            .table => |t| {
+                selection.setAccessibility(.table, "Table", "Tabular data", "", "");
+                if (t.selected_row) |row_idx| {
+                    selection.cursor_line = row_idx;
+                    if (t.selected_column) |col_idx| selection.cursor_index = col_idx;
+                }
+            },
+            .automerge => |a| {
+                if (a.children.len > 0) {
+                    a.children[0].select(selection);
+                } else {
+                    selection.clear();
+                }
+            },
+            .scroll => |s| {
+                if (s.child) |child| {
+                    child.*.select(selection);
+                } else {
+                    selection.setAccessibility(.container, "Scroll indicator", "", "", "");
+                }
+            },
+            .center => |c| c.child.*.select(selection),
             .separator => {
                 selection.setAccessibility(.none, "Separator", "Visual separator", "", "");
             },
@@ -893,6 +1045,28 @@ pub const Node = union(enum) {
                 if (c.child) |ch| break :blkSel3 try ch.*.getSelectedContent(allocator);
                 break :blkSel3 "";
             },
+            .table => |t| blkTable: {
+                if (t.selected_row) |row_idx| {
+                    if (row_idx < t.rows.len) {
+                        const row = t.rows[row_idx];
+                        if (t.selected_column) |col_idx| {
+                            if (col_idx < row.len) break :blkTable row[col_idx];
+                        }
+                        if (row.len > 0) break :blkTable row[0];
+                    }
+                }
+                break :blkTable "";
+            },
+            .automerge => |a| blkAuto: {
+                if (a.children.len == 0) break :blkAuto "";
+                break :blkAuto try a.children[0].getSelectedContent(allocator);
+            },
+            .scroll => |s| blkScroll: {
+                if (s.child) |child| break :blkScroll try child.*.getSelectedContent(allocator);
+                break :blkScroll "";
+            },
+            .center => |c| try c.child.*.getSelectedContent(allocator),
+            .canvas_animation => "",
             else => "",
         };
     }
@@ -909,19 +1083,151 @@ pub const CustomRenderer = struct {
 
 pub const Orientation = enum { vertical, horizontal };
 
+pub const SeparatorStyle = enum {
+    plain,
+    dashed,
+    double,
+    dotted,
+    heavy,
+};
+
 pub const Separator = struct {
     orientation: Orientation = .horizontal,
+    style: SeparatorStyle = .plain,
+    length: usize = 0,
 };
+
+const SeparatorGlyphs = struct {
+    horizontal: []const u8,
+    vertical: []const u8,
+};
+
+fn separatorRequirement(sep: Separator) Requirement {
+    const span = if (sep.length > 0) sep.length else 1;
+    return switch (sep.orientation) {
+        .horizontal => Requirement{ .min_width = span, .min_height = 1 },
+        .vertical => Requirement{ .min_width = 1, .min_height = span },
+    };
+}
+
+fn separatorGlyphs(style: SeparatorStyle) SeparatorGlyphs {
+    return switch (style) {
+        .plain => .{ .horizontal = "\xE2\x94\x80", .vertical = "\xE2\x94\x82" },
+        .dashed => .{ .horizontal = "- ", .vertical = "|" },
+        .double => .{ .horizontal = "\xE2\x95\x90", .vertical = "\xE2\x95\x91" },
+        .dotted => .{ .horizontal = ". ", .vertical = ":" },
+        .heavy => .{ .horizontal = "\xE2\x94\x81", .vertical = "\xE2\x94\x83" },
+    };
+}
+
+fn renderSeparator(sep: Separator, ctx: *RenderContext) !void {
+    const glyphs = separatorGlyphs(sep.style);
+    const span = if (sep.length > 0) sep.length else 1;
+    switch (sep.orientation) {
+        .horizontal => {
+            var written: usize = 0;
+            while (written < span) {
+                const remaining = span - written;
+                const chunk = if (glyphs.horizontal.len <= remaining) glyphs.horizontal else glyphs.horizontal[0..remaining];
+                try ctxWrite(ctx, chunk);
+                written += chunk.len;
+            }
+            try ctxWrite(ctx, "\n");
+        },
+        .vertical => {
+            var i: usize = 0;
+            while (i < span) : (i += 1) {
+                try ctxWrite(ctx, glyphs.vertical);
+                try ctxWrite(ctx, "\n");
+            }
+        },
+    }
+}
 
 pub const WindowFrame = struct {
     title: []const u8 = "",
 };
 
+pub const GaugeOrientation = enum { horizontal, vertical };
+
 pub const Gauge = struct {
     fraction: f32 = 0.0,
     width: usize = 10,
-    orientation: Orientation = .horizontal,
+    orientation: GaugeOrientation = .horizontal,
+    fill_char: u8 = '#',
+    empty_char: u8 = '.',
+    show_percentage: bool = false,
+    label: []const u8 = "",
 };
+
+fn renderHorizontalGauge(g: Gauge, ctx: *RenderContext) !void {
+    const total = if (g.width < 3) 3 else g.width;
+    const inner: usize = total - 2;
+    const clamped = std.math.clamp(g.fraction, 0.0, 1.0);
+    const filled: usize = @intFromFloat(@floor(@as(f32, @floatFromInt(inner)) * clamped + 0.0001));
+    const empty: usize = inner - filled;
+
+    var buf = std.array_list.Managed(u8).init(std.heap.page_allocator);
+    defer buf.deinit();
+    try buf.appendSlice("[");
+    var i: usize = 0;
+    while (i < filled) : (i += 1) try buf.append(g.fill_char);
+    i = 0;
+    while (i < empty) : (i += 1) try buf.append(g.empty_char);
+    try buf.appendSlice("]");
+
+    if (g.show_percentage) {
+        var tmp: [16]u8 = undefined;
+        const percent: usize = @intFromFloat(@round(clamped * 100.0));
+        const pct_text = try std.fmt.bufPrint(&tmp, " {d:0>3}%", .{percent});
+        try buf.appendSlice(pct_text);
+    }
+    if (g.label.len > 0) {
+        try buf.appendSlice(" ");
+        try buf.appendSlice(g.label);
+    }
+
+    if (ctx.drawer != null) {
+        try ctxDraw(ctx, ctx.origin_x, ctx.origin_y, buf.items);
+    } else {
+        try ctxWrite(ctx, buf.items);
+    }
+}
+
+fn renderVerticalGauge(g: Gauge, ctx: *RenderContext) !void {
+    const total = if (g.width < 3) 3 else g.width;
+    const clamped = std.math.clamp(g.fraction, 0.0, 1.0);
+    const filled: usize = @intFromFloat(@floor(@as(f32, @floatFromInt(total)) * clamped + 0.0001));
+
+    var buf = std.array_list.Managed(u8).init(std.heap.page_allocator);
+    defer buf.deinit();
+
+    var row: usize = total;
+    while (row > 0) : (row -= 1) {
+        const ch = if (row <= filled) g.fill_char else g.empty_char;
+        try buf.appendSlice("[");
+        try buf.append(ch);
+        try buf.appendSlice("]\n");
+    }
+
+    if (g.show_percentage) {
+        var tmp: [16]u8 = undefined;
+        const percent: usize = @intFromFloat(@round(clamped * 100.0));
+        const pct_text = try std.fmt.bufPrint(&tmp, "{d:0>3}%", .{percent});
+        try buf.appendSlice(pct_text);
+        try buf.appendSlice("\n");
+    }
+    if (g.label.len > 0) {
+        try buf.appendSlice(g.label);
+        try buf.appendSlice("\n");
+    }
+
+    if (ctx.drawer != null) {
+        try ctxDraw(ctx, ctx.origin_x, ctx.origin_y, buf.items);
+    } else {
+        try ctxWrite(ctx, buf.items);
+    }
+}
 
 pub const Spinner = struct {
     frames: []const []const u8 = &[_][]const u8{ "-", "\\", "|", "/" },
@@ -1132,32 +1438,332 @@ pub const GridBox = struct {
             .min_height = total_height,
         };
     }
+};
 
-    pub fn render(self: GridBox, ctx: *RenderContext) !void {
-        var y_offset: i32 = ctx.origin_y;
-        for (self.cells) |row| {
-            var row_widths = std.array_list.Managed(usize).init(std.heap.page_allocator);
-            defer row_widths.deinit();
-            var max_height: usize = 0;
-            for (row) |cell| {
-                const req = cell.computeRequirement();
-                try row_widths.append(req.min_width);
-                max_height = @max(max_height, req.min_height);
+pub const CanvasBuilder = struct {
+    allocator: std.mem.Allocator,
+    width: usize,
+    height: usize,
+    rows: [][]u8,
+    fill_char: u8,
+    owns_rows: bool = true,
+
+    pub fn init(allocator: std.mem.Allocator, width: usize, height: usize, fill_char: u8) !CanvasBuilder {
+        var rows = try allocator.alloc([]u8, height);
+        var y: usize = 0;
+        while (y < height) : (y += 1) {
+            rows[y] = try allocator.alloc(u8, width);
+            @memset(rows[y], fill_char);
+        }
+        return CanvasBuilder{
+            .allocator = allocator,
+            .width = width,
+            .height = height,
+            .rows = rows,
+            .fill_char = fill_char,
+            .owns_rows = true,
+        };
+    }
+
+    pub fn drawPoint(self: *CanvasBuilder, x: usize, y: usize, ch: u8) void {
+        if (y >= self.rows.len or x >= self.width) return;
+        self.rows[y][x] = ch;
+    }
+
+    pub fn drawHorizontalLine(self: *CanvasBuilder, y: usize, x0: usize, x1: usize, ch: u8) void {
+        if (y >= self.rows.len) return;
+        var col = @min(x0, x1);
+        const end = @min(@max(x0, x1), self.width - 1);
+        while (col <= end) : (col += 1) self.rows[y][col] = ch;
+    }
+
+    pub fn drawVerticalLine(self: *CanvasBuilder, x: usize, y0: usize, y1: usize, ch: u8) void {
+        if (x >= self.width) return;
+        var row = @min(y0, y1);
+        const end = @min(@max(y0, y1), self.height - 1);
+        while (row <= end) : (row += 1) self.rows[row][x] = ch;
+    }
+
+    pub fn drawText(self: *CanvasBuilder, x: usize, y: usize, text: []const u8) void {
+        if (y >= self.rows.len) return;
+        var idx: usize = 0;
+        while (idx < text.len and x + idx < self.width) : (idx += 1) {
+            self.rows[y][x + idx] = text[idx];
+        }
+    }
+
+    pub fn toCanvas(self: *CanvasBuilder) !Canvas {
+        const rows_const = try self.allocator.alloc([]const u8, self.rows.len);
+        for (self.rows, 0..) |row, idx| {
+            rows_const[idx] = row;
+        }
+        self.owns_rows = false;
+        return Canvas{
+            .rows = rows_const,
+            .width = self.width,
+            .height = self.height,
+            .fill_char = self.fill_char,
+        };
+    }
+
+    pub fn toNode(self: *CanvasBuilder) !Node {
+        return Node{ .canvas = try self.toCanvas() };
+    }
+
+    pub fn deinit(self: *CanvasBuilder) void {
+        if (!self.owns_rows) return;
+        for (self.rows) |row| {
+            self.allocator.free(row);
+        }
+        self.allocator.free(self.rows);
+        self.owns_rows = false;
+    }
+};
+
+pub const Table = struct {
+    headers: []const []const u8 = &[_][]const u8{},
+    rows: []const []const []const u8 = &[_][]const []const u8{},
+    selected_row: ?usize = null,
+    selected_column: ?usize = null,
+    zebra: bool = false,
+    border: bool = true,
+
+    const Bounds = struct {
+        width: usize,
+        height: usize,
+    };
+
+    fn maxColumns(self: Table) usize {
+        var max_cols: usize = self.headers.len;
+        for (self.rows) |row| {
+            if (row.len > max_cols) max_cols = row.len;
+        }
+        return max_cols;
+    }
+
+    fn rowVisualWidth(cells: []const []const u8) usize {
+        if (cells.len == 0) return 1;
+        var width: usize = 1; // leading border
+        for (cells) |cell| {
+            width += cell.len + 3; // space + content + border
+        }
+        return width;
+    }
+
+    pub fn bounds(self: Table) Bounds {
+        var max_width: usize = 1;
+        if (self.headers.len > 0) {
+            const header_width = Table.rowVisualWidth(self.headers);
+            if (header_width > max_width) max_width = header_width;
+        }
+        for (self.rows) |row| {
+            const rw = Table.rowVisualWidth(row);
+            if (rw > max_width) max_width = rw;
+        }
+        const base_height: usize = 2; // top + bottom
+        const header_height: usize = if (self.headers.len > 0) 2 else 0; // header + separator
+        const body_height: usize = self.rows.len;
+        return .{
+            .width = max_width,
+            .height = base_height + header_height + body_height,
+        };
+    }
+
+    fn columnWidths(self: Table, allocator: std.mem.Allocator) ![]usize {
+        const cols = self.maxColumns();
+        const widths = try allocator.alloc(usize, cols);
+        @memset(widths, 1);
+        for (self.headers, 0..) |cell, idx| {
+            widths[idx] = @max(widths[idx], cell.len);
+        }
+        for (self.rows) |row| {
+            for (row, 0..) |cell, idx| {
+                widths[idx] = @max(widths[idx], cell.len);
             }
-            var x_offset: i32 = ctx.origin_x;
-            for (row, 0..) |cell, col_idx| {
-                var child_ctx = ctx.*;
-                child_ctx.origin_x = x_offset;
-                child_ctx.origin_y = y_offset;
-                try cell.render(&child_ctx);
-                x_offset += @as(i32, @intCast(row_widths.items[col_idx] + self.column_gap));
+        }
+        return widths;
+    }
+
+    fn writeHorizontalRule(ctx: *RenderContext, widths: []const usize) !void {
+        try ctxWrite(ctx, "+");
+        for (widths) |w| {
+            var i: usize = 0;
+            while (i < w + 2) : (i += 1) try ctxWrite(ctx, "-");
+            try ctxWrite(ctx, "+");
+        }
+        try ctxWrite(ctx, "\n");
+    }
+
+    fn writeRow(ctx: *RenderContext, widths: []const usize, cells: []const []const u8, selected_col: ?usize, highlight: bool, zebra: bool) !void {
+        try ctxWrite(ctx, "|");
+        for (widths, 0..) |w, idx| {
+            try ctxWrite(ctx, " ");
+            var used: usize = 0;
+            if (highlight and idx == 0) {
+                try ctxWrite(ctx, ">");
+                used += 1;
+            } else if (zebra and idx == 0) {
+                try ctxWrite(ctx, "~");
+                used += 1;
             }
-            y_offset += @as(i32, @intCast(max_height + self.row_gap));
+            if (idx < cells.len) {
+                const cell = cells[idx];
+                if (selected_col) |sc| {
+                    if (sc == idx) {
+                        try ctxWrite(ctx, "[");
+                        used += 1;
+                        try ctxWrite(ctx, cell);
+                        used += cell.len;
+                        try ctxWrite(ctx, "]");
+                        used += 1;
+                    } else {
+                        try ctxWrite(ctx, cell);
+                        used += cell.len;
+                    }
+                } else {
+                    try ctxWrite(ctx, cell);
+                    used += cell.len;
+                }
+            }
+            if (used < w) {
+                var padding = w - used;
+                while (padding > 0) : (padding -= 1) try ctxWrite(ctx, " ");
+            }
+            try ctxWrite(ctx, " |");
+        }
+        try ctxWrite(ctx, "\n");
+    }
+
+    pub fn render(self: Table, ctx: *RenderContext) anyerror!void {
+        var arena_storage: ?std.heap.ArenaAllocator = null;
+        const allocator = blk: {
+            if (ctx.allocator) |alloc| break :blk alloc;
+            arena_storage = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+            break :blk arena_storage.?.allocator();
+        };
+        defer if (arena_storage) |*arena| arena.deinit();
+
+        const widths = try self.columnWidths(allocator);
+        defer allocator.free(widths);
+
+        try Table.writeHorizontalRule(ctx, widths);
+        if (self.headers.len > 0) {
+            try Table.writeRow(ctx, widths, self.headers, null, false, false);
+            try Table.writeHorizontalRule(ctx, widths);
+        }
+        if (self.rows.len == 0) {
+            try ctxWrite(ctx, "| (empty) |\n");
+        } else {
+            for (self.rows, 0..) |row, row_idx| {
+                const highlight = if (self.selected_row) |sr| sr == row_idx else false;
+                const selected_col = if (highlight) self.selected_column else null;
+                const zebra = self.zebra and (row_idx % 2 == 1);
+                try Table.writeRow(ctx, widths, row, selected_col, highlight, zebra);
+            }
+        }
+        try Table.writeHorizontalRule(ctx, widths);
+    }
+};
+
+pub const Automerge = struct {
+    children: []const Node = &[_]Node{},
+
+    const Dimensions = struct {
+        width: usize,
+        height: usize,
+    };
+
+    pub fn dimensions(self: Automerge) Dimensions {
+        var width: usize = 0;
+        var height: usize = 0;
+        for (self.children) |child| {
+            const req = child.computeRequirement();
+            if (req.min_width > width) width = req.min_width;
+            height += req.min_height;
+        }
+        return .{ .width = width, .height = height };
+    }
+
+    pub fn render(self: Automerge, ctx: *RenderContext) anyerror!void {
+        if (ctx.drawer != null) {
+            for (self.children) |child| try child.render(ctx);
+            return;
+        }
+        var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+        defer arena.deinit();
+        var buffer = std.ArrayListUnmanaged(u8){};
+        defer buffer.deinit(arena.allocator());
+
+        for (self.children) |child| {
+            switch (child) {
+                .text => |text_node| {
+                    try buffer.appendSlice(arena.allocator(), text_node.content);
+                },
+                else => {
+                    if (buffer.items.len > 0) {
+                        try ctxWrite(ctx, buffer.items);
+                        buffer.clearRetainingCapacity();
+                    }
+                    try child.render(ctx);
+                },
+            }
+        }
+        if (buffer.items.len > 0) {
+            try ctxWrite(ctx, buffer.items);
         }
     }
 };
 
-pub const FrameBorderStyle = enum { single, double };
+pub const ScrollDecorator = struct {
+    child: ?*const Node = null,
+    indicator: ScrollIndicator = .{},
+    top_symbol: []const u8 = "↑",
+    bottom_symbol: []const u8 = "↓",
+
+    pub fn render(self: ScrollDecorator, ctx: *RenderContext) anyerror!void {
+        if (self.indicator.top) {
+            try ctxWrite(ctx, self.top_symbol);
+            try ctxWrite(ctx, "\n");
+        }
+        if (self.child) |child| {
+            try child.*.render(ctx);
+        }
+        if (self.indicator.bottom) {
+            try ctxWrite(ctx, "\n");
+            try ctxWrite(ctx, self.bottom_symbol);
+        }
+    }
+};
+
+pub const Center = struct {
+    child: *const Node,
+    width: usize = 0,
+
+    pub fn render(self: Center, ctx: *RenderContext) anyerror!void {
+        const req = self.child.*.computeRequirement();
+        const span = if (self.width > 0) self.width else req.min_width;
+        const padding = if (span > req.min_width) (span - req.min_width) / 2 else 0;
+        if (ctx.drawer != null) {
+            var child_ctx = ctx.*;
+            child_ctx.origin_x += @as(i32, @intCast(padding));
+            try self.child.*.render(&child_ctx);
+            return;
+        }
+        var i: usize = 0;
+        while (i < padding) : (i += 1) try ctxWrite(ctx, " ");
+        try self.child.*.render(ctx);
+        var j: usize = 0;
+        while (j < padding) : (j += 1) try ctxWrite(ctx, " ");
+    }
+};
+
+pub const FrameBorderStyle = enum {
+    single,
+    double,
+    rounded,
+    heavy,
+    ascii,
+};
 
 pub const FrameBorder = struct {
     charset: FrameBorderStyle = .single,
@@ -1636,6 +2242,43 @@ test "frame renders paragraph with per-line borders and padding" {
         "\xE2\x94\x94\xE2\x94\x80\xE2\x94\x80\xE2\x94\x80\xE2\x94\x80\xE2\x94\x98\n" ++
         "\x1b[0m";
     try std.testing.expectEqualStrings(expected, managed.items);
+}
+
+test "canvas animation requirement tracks active frame" {
+    const frame_a = Canvas{ .rows = &[_][]const u8{"aa"} };
+    const frame_b = Canvas{ .rows = &[_][]const u8{ "long", "row" } };
+    const n = Node{ .canvas_animation = .{ .frames = &[_]Canvas{ frame_a, frame_b }, .index = 1 } };
+    const req = n.computeRequirement();
+    try std.testing.expectEqual(@as(usize, 4), req.min_width);
+    try std.testing.expectEqual(@as(usize, 2), req.min_height);
+}
+
+test "canvas animation advances through frames" {
+    var managed = std.array_list.Managed(u8).init(std.testing.allocator);
+    defer managed.deinit();
+    const Adapter = struct {
+        fn write(user_data: *anyopaque, data: []const u8) anyerror!void {
+            const buf = @as(*std.array_list.Managed(u8), @ptrCast(@alignCast(user_data)));
+            try buf.appendSlice(data);
+        }
+    };
+
+    const frame_a = Canvas{ .rows = &[_][]const u8{"A"} };
+    const frame_b = Canvas{ .rows = &[_][]const u8{"B"} };
+    var node_anim = Node{ .canvas_animation = .{ .frames = &[_]Canvas{ frame_a, frame_b } } };
+    var ctx = RenderContext{
+        .sink = .{ .user_data = @as(*anyopaque, @ptrCast(&managed)), .writeAll = Adapter.write },
+    };
+
+    try node_anim.render(&ctx);
+    try std.testing.expect(std.mem.indexOf(u8, managed.items, "A") != null);
+    managed.items.len = 0;
+    switch (node_anim) {
+        .canvas_animation => |*anim| anim.advance(),
+        else => unreachable,
+    }
+    try node_anim.render(&ctx);
+    try std.testing.expect(std.mem.indexOf(u8, managed.items, "B") != null);
 }
 
 test "frame supports double border charset" {

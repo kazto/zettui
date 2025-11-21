@@ -190,6 +190,7 @@ test "drawString writes glyphs and present flushes rows" {
         .glyph = " ",
         .fg = 0x000000,
         .bg = 0x000000,
+        .style = .{},
     });
     screen.drawString(1, 0, "hi");
 

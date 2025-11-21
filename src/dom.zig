@@ -13,6 +13,13 @@ pub const PaletteColor = node.PaletteColor;
 
 pub const FocusPosition = node.FocusPosition;
 pub const ScrollIndicator = node.ScrollIndicator;
+pub const CanvasBuilder = node.CanvasBuilder;
+pub const Table = node.Table;
+pub const FrameBorder = node.FrameBorder;
+pub const FrameBorderStyle = node.FrameBorderStyle;
+pub const FlexboxConfig = node.FlexboxConfig;
+pub const Axis = node.Axis;
+pub const Constraint = node.Constraint;
 
 pub const elements = elements_mod;
 pub const canvas = canvas_mod;

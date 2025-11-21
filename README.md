@@ -42,3 +42,12 @@ Lavender underline
 実際の出力は ANSI エスケープで彩色されます (例: Crimson 行は赤、Sunset 行は FG/BG を変更)。
 
 `zig build run:interaction` は実行中に端末を一時的に raw モードへ切り替え、矢印キーや Enter でメニューを移動・選択できます。スペースまたは SGR マウスイベント（クリック）でボタンを点滅させ、`q` で終了します。
+
+## Running interactive demos under a pseudo-TTY
+
+Some demos (e.g. `print_key_press`, `focus_cursor`) expect a real TTY to enable raw mode. When running inside a non-interactive environment, wrap the command with `script -qfc`. Examples:
+
+```bash
+printf 'q' | script -qfc "ZIG_GLOBAL_CACHE_DIR=./.zig-cache zig build run:print-key-press" /dev/null
+printf 'q' | script -qfc "ZIG_GLOBAL_CACHE_DIR=./.zig-cache zig build run:focus-cursor" /dev/null
+```
