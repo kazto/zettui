@@ -14,6 +14,8 @@ pub fn main() !void {
     try stdout.writeAll("\n");
     try renderToggles(&stdout, a);
     try stdout.writeAll("\n");
+    try renderSelectionList(&stdout, a);
+    try stdout.writeAll("\n");
     try renderRadioGroups(&stdout, a);
 }
 
@@ -48,6 +50,36 @@ fn renderToggles(stdout: *std.fs.File, allocator: std.mem.Allocator) !void {
     try toggle_component.render();
     try stdout.writeAll("\n");
     try framed.render();
+    try stdout.writeAll("\n");
+}
+
+fn renderSelectionList(stdout: *std.fs.File, allocator: std.mem.Allocator) !void {
+    try renderHeading(stdout, allocator, "-- Selection list (menu with toggles) --", .{ .fg = 0x8B5CF6 });
+    const items = [_][]const u8{ "apples", "bananas", "cherries", "dates" };
+    const defaults = [_]bool{ false, true, false, false };
+    const selection_menu = try zettui.component.widgets.menu(allocator, .{
+        .items = &items,
+        .selected_index = 1,
+        .multi_select = true,
+        .selected_flags = &defaults,
+        .highlight_color = 0x8B5CF6,
+    });
+
+    try stdout.writeAll("Initial selection state:\n");
+    try selection_menu.render();
+
+    try stdout.writeAll("\nToggle current item, move down, toggle again:\n");
+    _ = selection_menu.onEvent(.{ .key = .{ .codepoint = ' ' } });
+    _ = selection_menu.onEvent(.{ .key = .{ .arrow_key = .down } });
+    _ = selection_menu.onEvent(.{ .key = .{ .codepoint = ' ' } });
+    try selection_menu.render();
+
+    try stdout.writeAll("\nSelect all then clear via custom events:\n");
+    _ = selection_menu.onEvent(.{ .custom = .{ .tag = "menu:select_all" } });
+    try selection_menu.render();
+    try stdout.writeAll("\n");
+    _ = selection_menu.onEvent(.{ .custom = .{ .tag = "menu:clear" } });
+    try selection_menu.render();
     try stdout.writeAll("\n");
 }
 

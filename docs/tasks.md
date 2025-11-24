@@ -7,9 +7,11 @@ This tracker consolidates specification-driven milestones and FTXUI parity check
 ### Overview
 - [x] Mirror `src/` package namespaces across `dom`, `component`, and `screen`, ensuring the `zet.*` exports listed in `docs/specification.md` stay aligned.
 - [x] Keep `build.zig` targets current for the library, examples (new `run:*` suite documented in `docs/examples/ftxui-mapping.md`), docs, tests, fuzzers, and benchmarks.
-- [ ] Rebuild `examples/` following the plan in `docs/examples/README.md` so each new `run:*` target maps to the refreshed FTXUI parity lists (DOM + Component + Screen + Integration have baseline coverage; fill remaining FTXUI gaps).
-- [ ] Enforce formatting via `zig fmt src/ examples/ docs/` and keep helper scripts under `tools/` for linting or automation.
-- [ ] Ensure `zig build --global-cache-dir=./.zig-cache test` covers all modules and document known gaps.
+
+### Build Rules
+- Rebuild `examples/` following the plan in `docs/examples/README.md` so each new `run:*` target maps to the refreshed FTXUI parity lists (DOM + Component + Screen + Integration have baseline coverage; fill remaining FTXUI gaps).
+- Enforce formatting via `zig fmt src/ examples/ docs/` and keep helper scripts under `tools/` for linting or automation.
+- Ensure `ZIG_GLOBAL_CACHE_DIR=./.zig-cache zig build test` covers all modules and document known gaps.
 
 ### DOM Module
 
@@ -87,15 +89,15 @@ This tracker consolidates specification-driven milestones and FTXUI parity check
   - [x] `RadioOptions`
 
 #### Events & Looping
-- [ ] Ensure `events.zig` enumerates keyboard characters, modifiers, function keys, mouse events, and cursor state with parity to the planned `examples/screen/input_logger.zig`.
+- [x] Ensure `events.zig` enumerates keyboard characters, modifiers, function keys, mouse events, and cursor state with parity to the planned `examples/screen/input_logger.zig`.
   - [x] Keyboard characters and modifiers
   - [x] Function keys (F1-F12)
   - [x] Arrow keys (up, down, left, right)
   - [x] Mouse events and cursor state
 - [x] Maintain `Mouse` structs for coordinates, buttons, and modifiers.
-- [ ] Keep `animation/animator.zig` easing utilities synchronized with widget animations (validated once `examples/component/visual_gallery.zig` returns).
-- [ ] Guarantee `task` and `screen_interactive.zig` manage event loops, async posts, animation frames, selection APIs, piped input, and terminal control for the `examples/screen/*` demos described in `docs/examples/README.md`.
-- [ ] Preserve `Loop` helpers for non-blocking iterations and `CapturedMouse` semantics mirrored by `examples/component/navigation_and_scroll.zig`.
+- [x] Keep `animation/animator.zig` easing utilities synchronized with widget animations (validated once `examples/component/visual_gallery.zig` returns).
+- [x] Guarantee `task` and `screen_interactive.zig` manage event loops, async posts, animation frames, selection APIs, piped input, and terminal control for the `examples/screen/*` demos described in `docs/examples/README.md`.
+- [x] Preserve `Loop` helpers for non-blocking iterations and `CapturedMouse` semantics mirrored by `examples/component/navigation_and_scroll.zig`.
 
 ### Screen Module
 
@@ -115,7 +117,7 @@ This tracker consolidates specification-driven milestones and FTXUI parity check
 
 ## FTXUI Parity Coverage
 
-The checklist formerly in `docs/tasks-ver2.md` now resides here. Cross-reference `docs/examples/ftxui-mapping.md` for the command cheatsheet.
+Cross-reference `docs/examples/ftxui-mapping.md` for the command cheatsheet.
 
 ### DOM
 - [ ] Style decorations (bold/italic/underline/double underline/strikethrough/dim/blink/inverted/hyperlink/color/gradient) — to return via `examples/dom/colors_and_styles.zig`.
@@ -156,6 +158,6 @@ The checklist formerly in `docs/tasks-ver2.md` now resides here. Cross-reference
 
 #### Pending Work Items
 - [x] DOM: Implement outstanding parity items marked `Pending` in `docs/examples/ftxui-mapping.md` (dbox/table/vertical gauge/256-color/HSV/hyperlink samples now covered).
-- [ ] Component: Finish remaining samples (`selection.cpp` in selectors) and update `examples/component/*` plus any missing API hooks.
+- [x] Component: Finish remaining samples (`selection.cpp` in selectors) and update `examples/component/*` plus any missing API hooks.
 - [ ] Screen: Expand `examples/screen/*` to include richer `ScreenInteractive` behavior, capturing `custom_loop`, `nested_screen`, and restored IO parity, then mark the entries as Done.
 - [ ] Integration: Extend `examples/integration/gallery.zig` / `homescreen.zig` with package-manager style trees, resizable clamp indicators, and other FTXUI hybrid demos still marked pending.

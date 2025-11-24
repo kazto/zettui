@@ -66,7 +66,7 @@
 | `toggle.cpp` | `examples/component/selectors.zig` | In progress — toggle sample. |
 | `radiobox.cpp` | `examples/component/selectors.zig` | In progress — radio group sample. |
 | `radiobox_in_frame.cpp` | `examples/component/selectors.zig` | In progress — extend selectors with framed style. |
-| `selection.cpp` | `examples/component/selectors.zig` | Pending — highlight/selection metadata still minimal. |
+| `selection.cpp` | `examples/component/selectors.zig` | Done — multi-select selection flow simulated with toggle and select-all/clear events. |
 | `slider.cpp` | `examples/component/inputs_and_sliders.zig` (`run:component-inputs`) | In progress — horizontal slider sample. |
 | `slider_direction.cpp` | `examples/component/inputs_and_sliders.zig` | In progress — vertical slider included. |
 | `slider_rgb.cpp` | `examples/component/inputs_and_sliders.zig` | Done — RGB sliders with stepped mixing demo. |
