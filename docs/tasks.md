@@ -87,15 +87,15 @@ This tracker consolidates specification-driven milestones and FTXUI parity check
   - [x] `RadioOptions`
 
 #### Events & Looping
-- [ ] Ensure `events.zig` enumerates keyboard characters, modifiers, function keys, mouse events, and cursor state with parity to the planned `examples/screen/input_logger.zig`.
+- [x] Ensure `events.zig` enumerates keyboard characters, modifiers, function keys, mouse events, and cursor state with parity to the planned `examples/screen/input_logger.zig`.
   - [x] Keyboard characters and modifiers
   - [x] Function keys (F1-F12)
   - [x] Arrow keys (up, down, left, right)
   - [x] Mouse events and cursor state
 - [x] Maintain `Mouse` structs for coordinates, buttons, and modifiers.
-- [ ] Keep `animation/animator.zig` easing utilities synchronized with widget animations (validated once `examples/component/visual_gallery.zig` returns).
-- [ ] Guarantee `task` and `screen_interactive.zig` manage event loops, async posts, animation frames, selection APIs, piped input, and terminal control for the `examples/screen/*` demos described in `docs/examples/README.md`.
-- [ ] Preserve `Loop` helpers for non-blocking iterations and `CapturedMouse` semantics mirrored by `examples/component/navigation_and_scroll.zig`.
+- [x] Keep `animation/animator.zig` easing utilities synchronized with widget animations (validated once `examples/component/visual_gallery.zig` returns).
+- [x] Guarantee `task` and `screen_interactive.zig` manage event loops, async posts, animation frames, selection APIs, piped input, and terminal control for the `examples/screen/*` demos described in `docs/examples/README.md`.
+- [x] Preserve `Loop` helpers for non-blocking iterations and `CapturedMouse` semantics mirrored by `examples/component/navigation_and_scroll.zig`.
 
 ### Screen Module
 
