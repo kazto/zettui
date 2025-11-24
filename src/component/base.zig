@@ -43,6 +43,10 @@ pub const Component = struct {
     pub fn onEvent(self: Component, event: events.Event) bool {
         return self.base.onEvent(event);
     }
+
+    pub fn animate(self: Component, delta_time: f32) void {
+        self.base.animate(delta_time);
+    }
 };
 
 pub const ComponentDecorator = fn (Component) Component;

@@ -20,6 +20,12 @@ pub fn easeOutBack(t: f32) f32 {
     return 1.0 + c3 * std.math.pow(f32, clamped - 1.0, 3) + c1 * std.math.pow(f32, clamped - 1.0, 2);
 }
 
+pub fn easeOutCubic(t: f32) f32 {
+    const clamped = easeLinear(t);
+    const inv = 1.0 - clamped;
+    return 1.0 - inv * inv * inv;
+}
+
 pub const Animator = struct {
     duration: f32,
     elapsed: f32 = 0,
@@ -33,10 +39,17 @@ pub const Animator = struct {
         if (self.elapsed > self.duration) self.elapsed = self.duration;
     }
 
-    pub fn value(self: Animator, easing: fn (f32) f32) f32 {
+    pub fn progress(self: Animator) f32 {
         if (self.duration == 0) return 1.0;
-        const progress = std.math.clamp(self.elapsed / self.duration, 0.0, 1.0);
-        return easing(progress);
+        return std.math.clamp(self.elapsed / self.duration, 0.0, 1.0);
+    }
+
+    pub fn isActive(self: Animator) bool {
+        return self.elapsed < self.duration;
+    }
+
+    pub fn value(self: Animator, easing: fn (f32) f32) f32 {
+        return easing(self.progress());
     }
 };
 
@@ -46,4 +59,16 @@ test "animator clamps progression" {
     try std.testing.expectApproxEqAbs(@as(f32, 0.5), anim.value(easeInOutQuad), 0.5);
     anim.advance(2.0);
     try std.testing.expectEqual(@as(f32, 1.0), anim.value(easeLinear));
+}
+
+test "ease out cubic approaches one" {
+    try std.testing.expectApproxEqAbs(@as(f32, 0.875), easeOutCubic(0.5), 0.01);
+    try std.testing.expectEqual(@as(f32, 1.0), easeOutCubic(2.0));
+}
+
+test "isActive reports completion" {
+    var anim = Animator{ .duration = 0.5 };
+    try std.testing.expect(anim.isActive());
+    anim.advance(0.5);
+    try std.testing.expect(!anim.isActive());
 }
