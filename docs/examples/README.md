@@ -2,6 +2,12 @@
 
 `examples/` は `references/FTXUI/examples` 全体を Zettui で再現するための実行可能ファイル群です。`build.zig` には各デモへ対応する `zig build run:*` ステップが登録されており、進捗は `docs/examples/ftxui-mapping.md` と `docs/tasks.md#ftxui-parity-coverage` で追跡します。
 
+## サンプルの詳細
+
+- DOM 機能 + サンプル: `docs/examples/dom.md`
+- Component 機能 + サンプル: `docs/examples/component.md`
+- Screen 機能 + サンプル: `docs/examples/screen.md`
+
 ## ディレクトリ構成
 
 | Directory | 役割 | 主な `zig build run:*` |
