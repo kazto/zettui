@@ -10,7 +10,7 @@ This tracker consolidates specification-driven milestones and FTXUI parity check
 
 ### Build Rules
 - Rebuild `examples/` following the plan in `docs/examples/README.md` so each new `run:*` target maps to the refreshed FTXUI parity lists (DOM + Component + Screen + Integration have baseline coverage; fill remaining FTXUI gaps).
-- Enforce formatting via `zig fmt src/ examples/ docs/` and keep helper scripts under `tools/` for linting or automation.
+- Enforce formatting via `zig fmt src/ examples/ docs/`.
 - Ensure `ZIG_GLOBAL_CACHE_DIR=./.zig-cache zig build test` covers all modules and document known gaps.
 
 ### DOM Module
