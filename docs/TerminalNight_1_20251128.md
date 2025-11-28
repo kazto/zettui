@@ -91,6 +91,23 @@ https://github.com/kazto/zettui
 
 ---
 
+# 進捗報告
+
+
+
+---
+
+# 次のネタ
+
+* [Task' em all](https://github.com/kazto/taskemall)
+  * https://github.com/kazto/taskemall
+
+```qr
+https://github.com/kazto/taskemall
+```
+
+---
+
 # 俺たちの戦いはこれからだ
 
 <!-- {"layout": "セクション ヘッダー"} -->
