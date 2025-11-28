@@ -23,6 +23,7 @@ pub fn build(b: *std.Build) void {
     };
 
     const example_definitions = [_]Example{
+        .{ .name = "showcase", .path = "examples/showcase.zig", .description = "One-screen showcase" },
         .{ .name = "dom-borders", .path = "examples/dom/borders.zig", .description = "DOM border/separator showcase" },
         .{ .name = "dom-layouts", .path = "examples/dom/layouts.zig", .description = "DOM layout combinator showcase" },
         .{ .name = "dom-colors", .path = "examples/dom/colors_and_styles.zig", .description = "DOM color/style gallery" },
@@ -75,17 +76,6 @@ pub fn build(b: *std.Build) void {
     });
     const test_step = b.step("test", "Run zettui unit tests");
     test_step.dependOn(&lib_tests.step);
-
-    const fmt_step = b.step("fmt", "Format Zig sources");
-    const fmt = b.addFmt(.{
-        .paths = &.{
-            "src",
-            "examples",
-            "docs",
-            "build.zig",
-        },
-    });
-    fmt_step.dependOn(&fmt.step);
 
     const runtime_demo_module = b.createModule(.{
         .root_source_file = b.path("examples/runtime_demo.zig"),
