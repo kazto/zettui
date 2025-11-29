@@ -1,9 +1,9 @@
 ---
 presentationID: 1lx3n9Xfgwqo5jeTC-HsdihmYmmy0V791d4pdxHOPXJ4
-title: ncursesの後継者たち
+title: TUIライブラリつくってみた
 ---
 
-# ncursesの後継者たち
+# ~~ncursesの後継者たち~~<br>TUIライブラリつくってみた
 
 ## 2025-11-28 Terminal Night #1<br>kazto (@kazto_dev)
 
@@ -93,7 +93,9 @@ https://github.com/kazto/zettui
 
 # 進捗報告
 
+![進捗スクリーンショット](./screenshot.png)
 
+<!-- {"layout": "タイトルのみ"} -->
 
 ---
 
@@ -101,6 +103,8 @@ https://github.com/kazto/zettui
 
 * [Task' em all](https://github.com/kazto/taskemall)
   * https://github.com/kazto/taskemall
+  * ターミナル上でタスクシュート的ななにかをやりたい
+  * 当然 Zettui を使って
 
 ```qr
 https://github.com/kazto/taskemall
@@ -118,7 +122,12 @@ https://github.com/kazto/taskemall
 
 * [k1LoW/deck](https://github.com/k1LoW/deck)
   * https://github.com/k1LoW/deck
+* [Songmu/laminate](https://github.com/Songmu/laminate)
+  * https://github.com/Songmu/laminate
 
 ```qr
 https://github.com/k1LoW/deck
+```
+```qr
+https://github.com/Songmu/laminate
 ```
