@@ -36,7 +36,7 @@ pub fn main() !void {
     };
 
     const Handler = struct {
-        fn handle(interactive: *zettui.screen.ScreenInteractive, event: zettui.screen.LoopEvent, ctx: ?*anyopaque) anyerror!bool {
+        fn handle(loop_screen: *zettui.screen.ScreenInteractive, event: zettui.screen.LoopEvent, ctx: ?*anyopaque) anyerror!bool {
             const st = @as(*State, @ptrCast(@alignCast(ctx.?)));
             switch (event) {
                 .tick => {
@@ -49,21 +49,21 @@ pub fn main() !void {
                 },
                 .custom => |c| {
                     if (std.mem.eql(u8, c.tag, "nested")) {
-                        var guard = interactive.nestedScreen();
+                        var guard = loop_screen.nestedScreen();
                         st.note = "entered nested screen guard";
-                        render(interactive, st) catch {};
+                        render(loop_screen, st) catch {};
                         guard.restore();
                         st.note = "nested guard restored";
                     } else if (std.mem.eql(u8, c.tag, "restored-io")) {
                         const Restore = struct {
-                            fn cb(ctx: ?*anyopaque) void {
-                                const out = @as(*std.fs.File, @ptrCast(@alignCast(ctx.?)));
+                            fn cb(cb_ctx: ?*anyopaque) void {
+                                const out = @as(*std.fs.File, @ptrCast(@alignCast(cb_ctx.?)));
                                 _ = out.writeAll("IO restored callback fired.\n") catch {};
                             }
                         };
-                        var guard = interactive.restoredIo(Restore.cb, st.stdout_anyopaque());
+                        var guard = loop_screen.restoredIo(Restore.cb, st.stdout_anyopaque());
                         st.note = "temporarily handing back IO";
-                        render(interactive, st) catch {};
+                        render(loop_screen, st) catch {};
                         guard.restore();
                         st.note = "resumed interactive output";
                     } else {
@@ -74,7 +74,7 @@ pub fn main() !void {
                     st.note = "input ignored";
                 },
             }
-            try render(interactive, st);
+            try render(loop_screen, st);
             return st.progress < 100;
         }
     };

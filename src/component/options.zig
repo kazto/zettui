@@ -1,4 +1,4 @@
-pub const ButtonVisual = enum { plain, primary, success, danger };
+pub const ButtonVisual = enum { plain, primary, success, danger, ghost };
 
 pub const ButtonFrameStyle = enum { none, inline_frame, panel };
 

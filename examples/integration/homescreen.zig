@@ -64,9 +64,9 @@ fn textRenderer(allocator: std.mem.Allocator, text: []const u8) !zettui.componen
     const data_ptr = try allocator.create(Data);
     data_ptr.* = .{ .text = owned };
     return zettui.component.widgets.renderer(allocator, try zettui.component.widgets.label(allocator, ""), struct {
-        fn render(self: *zettui.component.base.ComponentBase) anyerror!void {
-            const data = @as(*Data, @ptrCast(@alignCast(self.user_data.?)));
-            try std.fs.File.stdout().writeAll(data.text);
+        fn render(ctx: zettui.component.widgets.RendererContext) anyerror!void {
+            const data = @as(*Data, @ptrCast(@alignCast(ctx.child.base.user_data.?)));
+            try ctx.stdout.writeAll(data.text);
         }
     }.render);
 }

@@ -297,6 +297,7 @@ fn buttonVisualPrefix(style: options.ButtonVisual) []const u8 {
         .primary => ">> ",
         .success => "+ ",
         .danger => "! ",
+        .ghost => "",
     };
 }
 
@@ -306,6 +307,7 @@ fn buttonVisualSuffix(style: options.ButtonVisual) []const u8 {
         .primary => " <<",
         .success => "",
         .danger => " !",
+        .ghost => "",
     };
 }
 

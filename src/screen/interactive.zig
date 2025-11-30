@@ -2,8 +2,39 @@ const std = @import("std");
 const surface = @import("screen.zig");
 const events = @import("../component/events.zig");
 
-const LoopQueue = std.fifo.LinearFifo(LoopEvent, .Dynamic);
-const AnimationList = std.ArrayList(AnimationDriver);
+const AnimationList = std.ArrayListUnmanaged(AnimationDriver);
+
+const LoopQueue = struct {
+    allocator: std.mem.Allocator,
+    buffer: std.ArrayListUnmanaged(LoopEvent) = .{},
+    head: usize = 0,
+
+    pub fn init(allocator: std.mem.Allocator) LoopQueue {
+        return .{ .allocator = allocator };
+    }
+
+    pub fn deinit(self: *LoopQueue) void {
+        self.buffer.deinit(self.allocator);
+        self.head = 0;
+    }
+
+    pub fn writeItem(self: *LoopQueue, item: LoopEvent) !void {
+        try self.buffer.append(self.allocator, item);
+    }
+
+    pub fn readItem(self: *LoopQueue) !?LoopEvent {
+        if (self.head >= self.buffer.items.len) {
+            return null;
+        }
+        const item = self.buffer.items[self.head];
+        self.head += 1;
+        if (self.head == self.buffer.items.len) {
+            self.buffer.clearRetainingCapacity();
+            self.head = 0;
+        }
+        return item;
+    }
+};
 
 pub const TickEvent = struct {
     delta_ns: u64,
@@ -50,17 +81,18 @@ pub const ScreenInteractive = struct {
     };
 
     pub fn init(allocator: std.mem.Allocator, width: usize, height: usize) !ScreenInteractive {
-        return ScreenInteractive{
+        const si = ScreenInteractive{
             .allocator = allocator,
             .surface_impl = try surface.Screen.init(allocator, width, height),
             .queue = LoopQueue.init(allocator),
-            .animation_drivers = AnimationList.init(allocator),
+            .animation_drivers = .{},
         };
+        return si;
     }
 
     pub fn deinit(self: *ScreenInteractive) void {
         self.queue.deinit();
-        self.animation_drivers.deinit();
+        self.animation_drivers.deinit(self.allocator);
         self.allocator.free(self.surface_impl.image.pixels);
         self.mouse_capture = null;
     }
@@ -112,6 +144,15 @@ pub const ScreenInteractive = struct {
         try self.queue.writeItem(.{ .custom = .{ .tag = tag, .payload = payload } });
     }
 
+    pub fn customLoop(self: *ScreenInteractive, fetch: FetchFn, handler: EventHandler, ctx: ?*anyopaque) CustomLoop {
+        return CustomLoop{
+            .screen = self,
+            .fetch = fetch,
+            .handler = handler,
+            .ctx = ctx,
+        };
+    }
+
     pub fn nestedScreen(self: *ScreenInteractive) NestedScreenGuard {
         self.nested_depth += 1;
         return NestedScreenGuard{ .screen = self };
@@ -152,7 +193,7 @@ pub const ScreenInteractive = struct {
             .callback = callback,
             .context = ctx,
         };
-        try self.animation_drivers.append(entry);
+        try self.animation_drivers.append(self.allocator, entry);
         return AnimationHandle{ .screen = self, .id = id };
     }
 
