@@ -27,6 +27,7 @@ pub const EventLoop = struct {
         return .{
             .allocator = allocator,
             .scheduler = task.Scheduler.init(allocator),
+            .animator_state = .{ .duration = 0.25, .elapsed = 0.25 },
         };
     }
 

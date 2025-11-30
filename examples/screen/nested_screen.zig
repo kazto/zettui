@@ -2,24 +2,41 @@ const std = @import("std");
 const zettui = @import("zettui");
 
 pub fn main() !void {
-    const allocator = std.heap.page_allocator;
-    var outer = try zettui.screen.Screen.init(allocator, 40, 6);
-    defer allocator.free(outer.image.pixels);
-    var inner = try zettui.screen.Screen.init(allocator, 24, 4);
-    defer allocator.free(inner.image.pixels);
-
+    const gpa = std.heap.page_allocator;
     var stdout = std.fs.File.stdout();
-    try stdout.writeAll("=== Screen nested rendering demo ===\n");
+    try stdout.writeAll("=== ScreenInteractive nested screen demo ===\n");
 
-    outer.clear(.{ .glyph = " ", .fg = 0xE5E7EB, .bg = 0x1F2933 });
-    outer.drawString(2, 1, "Outer screen (40x6)");
-    outer.drawString(2, 3, "Embedding child below...");
-    try outer.present(stdout);
+    var interactive = try zettui.screen.ScreenInteractive.init(gpa, 44, 8);
+    defer interactive.deinit();
 
-    inner.clear(.{ .glyph = " ", .fg = 0x000000, .bg = 0xE5E7EB });
-    inner.drawString(1, 1, "+ Nested Screen +");
-    inner.drawString(1, 2, "Rows copied separately");
+    try drawOuter(interactive.screen(), &stdout, 0);
 
-    try stdout.writeAll("\n-- Child screen output --\n");
-    try inner.present(stdout);
+    {
+        var guard = interactive.nestedScreen();
+        try drawNested(interactive.screen(), &stdout, interactive.nested_depth);
+        guard.restore();
+    }
+
+    try drawOuter(interactive.screen(), &stdout, interactive.nested_depth);
+}
+
+fn drawOuter(screen: *zettui.screen.Screen, stdout: *std.fs.File, depth: usize) !void {
+    screen.clear(.{ .glyph = " ", .fg = 0xE5E7EB, .bg = 0x111827 });
+    screen.drawString(2, 1, "Outer surface (parent)");
+    screen.drawString(2, 3, "Depth (after nested restore):");
+    var buf: [32]u8 = undefined;
+    const msg = try std.fmt.bufPrint(&buf, "{d}", .{depth});
+    screen.drawString(4, 4, msg);
+    try screen.present(stdout.*);
+    try stdout.writeAll("\n");
+}
+
+fn drawNested(screen: *zettui.screen.Screen, stdout: *std.fs.File, depth: usize) !void {
+    screen.clear(.{ .glyph = " ", .fg = 0x111827, .bg = 0xE5E7EB });
+    screen.drawString(2, 1, "Nested screen guard in effect");
+    var buf: [32]u8 = undefined;
+    const msg = try std.fmt.bufPrint(&buf, "Nested depth: {d}", .{depth});
+    screen.drawString(2, 3, msg);
+    try screen.present(stdout.*);
+    try stdout.writeAll("\n");
 }

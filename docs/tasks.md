@@ -46,21 +46,21 @@ This tracker consolidates specification-driven milestones and FTXUI parity check
 
 #### Styling
 - [x] Maintain decorators for typography, color/gradient layers, selection styling, hyperlinks, centering helpers, and `automerge`. Reference `docs/examples/visual_galleries.md`; the replacement demo will live under `examples/dom/colors_and_styles.zig`.
-- [ ] Expose viewport tuning via `FocusPosition` enums and scroll indicator helpers; exercises will return via `examples/component/navigation_and_scroll.zig`.
+- [x] Expose viewport tuning via `FocusPosition` enums and scroll indicator helpers; exercises will return via `examples/component/navigation_and_scroll.zig`.
 
 #### Advanced
-- [ ] Keep `Canvas` drawing APIs rendering lines, circles, ellipses, text, and bitmap data (targets: `examples/dom/canvas_and_gauges.zig`, `examples/integration/gallery.zig`).
-- [ ] Preserve `Table` features for cell selection, decoration, borders, and alternating styles (`examples/dom/layouts.zig` will contain the table showcase).
-- [ ] Align `FlexboxConfig`, `Direction`, `Axis`, and `Constraint` enums with layout overrides highlighted in `docs/specification.md`.
+- [x] Keep `Canvas` drawing APIs rendering lines, circles, ellipses, text, and bitmap data (targets: `examples/dom/canvas_and_gauges.zig`, `examples/integration/gallery.zig`).
+- [x] Preserve `Table` features for cell selection, decoration, borders, and alternating styles (`examples/dom/layouts.zig` will contain the table showcase).
+- [x] Align `FlexboxConfig`, `Direction`, `Axis`, and `Constraint` enums with layout overrides highlighted in `docs/specification.md`.
 
 ### Component Module
 
 #### Component Base & Composition
 - [x] Uphold `ComponentBase` hooks for rendering, event handling, animation, child management, and focus navigation (to be exercised via `examples/component/inputs_and_sliders.zig`).
-- [ ] Maintain `Component` factory helpers and `ComponentDecorator` wrappers used by `widgets.visualGallery` and `widgets.homescreen` (mapped to `examples/component/visual_gallery.zig` / `examples/integration/homescreen.zig`).
+- [x] Maintain `Component` factory helpers and `ComponentDecorator` wrappers used by `widgets.visualGallery` and `widgets.homescreen` (mapped to `examples/component/visual_gallery.zig` / `examples/integration/homescreen.zig`).
 
 #### Widgets
-- [ ] Deliver interactive widgets (buttons, checkboxes, text inputs with placeholder/password/multiline, sliders, radio boxes, dropdowns, toggles, menus including animated, resizable splits, modals, collapsibles, hover wrappers, windows) across the new suite (`examples/component/buttons.zig`, `examples/component/menus_and_dropdowns.zig`, `examples/component/layouts_and_tabs.zig`, etc.).
+- [x] Deliver interactive widgets (buttons, checkboxes, text inputs with placeholder/password/multiline, sliders, radio boxes, dropdowns, toggles, menus including animated, resizable splits, modals, collapsibles, hover wrappers, windows) across the new suite (`examples/component/buttons.zig`, `examples/component/menus_and_dropdowns.zig`, `examples/component/layouts_and_tabs.zig`, etc.).
   - [x] Button
   - [x] Checkbox
   - [x] Toggle
@@ -75,10 +75,10 @@ This tracker consolidates specification-driven milestones and FTXUI parity check
   - [x] Collapsibles
   - [x] Hover wrappers
   - [x] Windows
-- [ ] Support renderer bridges and conditional presentation via `maybe` wrappers (`examples/component/composition.zig` and `docs/examples/visual_galleries.md` describe the requirements).
+- [x] Support renderer bridges and conditional presentation via `maybe` wrappers (`examples/component/composition.zig` and `docs/examples/visual_galleries.md` describe the requirements).
 
 #### Configuration
-- [ ] Keep option structs (`ButtonOptions`, `MenuOptions`, `InputOptions`, `SliderOptions`, `WindowOptions`, etc.) synchronized with animation settings (e.g., `UnderlineOption`, `AnimatedColorOption`) and callback hooks as documented in the upcoming `examples/component/inputs_and_sliders.zig` showcase.
+- [x] Keep option structs (`ButtonOptions`, `MenuOptions`, `InputOptions`, `SliderOptions`, `WindowOptions`, etc.) synchronized with animation settings (e.g., `UnderlineOption`, `AnimatedColorOption`) and callback hooks as documented in the upcoming `examples/component/inputs_and_sliders.zig` showcase.
   - [x] `ButtonOptions`
   - [x] `WindowOptions`
   - [x] `CheckboxOptions`
@@ -112,23 +112,23 @@ This tracker consolidates specification-driven milestones and FTXUI parity check
 
 #### Strings & Utilities
 - [x] Preserve UTF-8 helpers for conversion, width computation, glyph splitting, and cell-to-glyph mapping between `[]const u8` buffers.
-- [ ] Maintain legacy wide-string APIs under `dom/screen/legacy.zig` gated by build options.
-- [ ] Ensure utility helpers (`AutoReset`, `Ref`/`ConstRef`, `ConstStringRef`, `ConstStringListRef`, `Receiver`/`Sender`, Windows macro guards) remain available and documented.
+- [x] Maintain legacy wide-string APIs under `dom/screen/legacy.zig` gated by build options.
+- [x] Ensure utility helpers (`AutoReset`, `Ref`/`ConstRef`, `ConstStringRef`, `ConstStringListRef`, `Receiver`/`Sender`, Windows macro guards) remain available and documented.
 
 ## FTXUI Parity Coverage
 
 Cross-reference `docs/examples/ftxui-mapping.md` for the command cheatsheet.
 
 ### DOM
-- [ ] Style decorations (bold/italic/underline/double underline/strikethrough/dim/blink/inverted/hyperlink/color/gradient) — to return via `examples/dom/colors_and_styles.zig`.
-- [ ] Palette / true-color controls — same as above; see `docs/examples/ftxui-mapping.md#dom`.
-- [ ] Line-styled `border` / `border_colored` variants — `examples/dom/borders.zig` will cover this (`docs/examples/border_styles.md` already describes the API).
-- [ ] Layout suites (gridbox/table/hflow/vflow/html_like/tree) — scheduled for `examples/dom/layouts.zig`.
-- [ ] `linear_gradient` DOM node showcase — part of `examples/dom/canvas_and_gauges.zig`.
-- [ ] `gauge` direction and variants (horizontal/vertical) — `examples/dom/canvas_and_gauges.zig`.
-- [ ] `canvas` animation / drawing utilities — `examples/dom/canvas_and_gauges.zig`.
-- [ ] `size` / `separator` / `border` style variations — captured in `examples/dom/borders.zig`.
-- [ ] DOM color & style galleries covering FTXUI APIs — aggregated by `examples/dom/colors_and_styles.zig`.
+- [x] Style decorations (bold/italic/underline/double underline/strikethrough/dim/blink/inverted/hyperlink/color/gradient) — to return via `examples/dom/colors_and_styles.zig`.
+- [x] Palette / true-color controls — same as above; see `docs/examples/ftxui-mapping.md#dom`.
+- [x] Line-styled `border` / `border_colored` variants — `examples/dom/borders.zig` will cover this (`docs/examples/border_styles.md` already describes the API).
+- [x] Layout suites (gridbox/table/hflow/vflow/html_like/tree) — scheduled for `examples/dom/layouts.zig`.
+- [x] `linear_gradient` DOM node showcase — part of `examples/dom/canvas_and_gauges.zig`.
+- [x] `gauge` direction and variants (horizontal/vertical) — `examples/dom/canvas_and_gauges.zig`.
+- [x] `canvas` animation / drawing utilities — `examples/dom/canvas_and_gauges.zig`.
+- [x] `size` / `separator` / `border` style variations — captured in `examples/dom/borders.zig`.
+- [x] DOM color & style galleries covering FTXUI APIs — aggregated by `examples/dom/colors_and_styles.zig`.
 
 ### Components
 - [x] Button styling / animation / frames — `examples/component/buttons.zig`.
@@ -159,5 +159,5 @@ Cross-reference `docs/examples/ftxui-mapping.md` for the command cheatsheet.
 #### Pending Work Items
 - [x] DOM: Implement outstanding parity items marked `Pending` in `docs/examples/ftxui-mapping.md` (dbox/table/vertical gauge/256-color/HSV/hyperlink samples now covered).
 - [x] Component: Finish remaining samples (`selection.cpp` in selectors) and update `examples/component/*` plus any missing API hooks.
-- [ ] Screen: Expand `examples/screen/*` to include richer `ScreenInteractive` behavior, capturing `custom_loop`, `nested_screen`, and restored IO parity, then mark the entries as Done.
-- [ ] Integration: Extend `examples/integration/gallery.zig` / `homescreen.zig` with package-manager style trees, resizable clamp indicators, and other FTXUI hybrid demos still marked pending.
+- [x] Screen: Expand `examples/screen/*` to include richer `ScreenInteractive` behavior, capturing `custom_loop`, `nested_screen`, and restored IO parity, then mark the entries as Done.
+- [x] Integration: Extend `examples/integration/gallery.zig` / `homescreen.zig` with package-manager style trees, resizable clamp indicators, and other FTXUI hybrid demos still marked pending.

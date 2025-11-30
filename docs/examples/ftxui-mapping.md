@@ -87,8 +87,8 @@
 | `menu_underline_animated_gallery.cpp` | `examples/component/menus_and_dropdowns.zig` | In progress — underline gallery toggled. |
 | `canvas_animated.cpp` | `examples/component/visual_gallery.zig` (`run:component-visual`) | In progress — gallery component includes canvas sample. |
 | `linear_gradient_gallery.cpp` | `examples/component/visual_gallery.zig` | In progress — gradient panel. |
-| `gallery.cpp` | `examples/integration/gallery.zig` (`run:integration-gallery`) | In progress — DOM+Component hybrid. |
-| `homescreen.cpp` | `examples/integration/homescreen.zig` (`run:integration-homescreen`) | In progress — `widgets.homescreen`. |
+| `gallery.cpp` | `examples/integration/gallery.zig` (`run:integration-gallery`) | Done — DOM graph/gradient + package tree + clamp split. |
+| `homescreen.cpp` | `examples/integration/homescreen.zig` (`run:integration-homescreen`) | Done — sectioned dashboard with package tree and clamp window. |
 | `flexbox_gallery.cpp` | `examples/component/layouts_and_tabs.zig` (`run:component-layouts`) | In progress — split layout. |
 | `tab_horizontal.cpp` | `examples/component/layouts_and_tabs.zig` | In progress — horizontal tabs sample. |
 | `tab_vertical.cpp` | `examples/component/layouts_and_tabs.zig` | In progress — vertical tabs sample. |

@@ -1,20 +1,35 @@
 const std = @import("std");
 const posix = std.posix;
+const zettui = @import("zettui");
 
 pub fn main() !void {
     var stdout = std.fs.File.stdout();
-    try stdout.writeAll("Entering raw mode briefly (press any key)...\n");
+    try stdout.writeAll("=== ScreenInteractive restored IO demo ===\n");
+    try stdout.writeAll("A guard temporarily yields control so we can touch the terminal directly.\n");
+
+    const gpa = std.heap.page_allocator;
+    var interactive = try zettui.screen.ScreenInteractive.init(gpa, 32, 4);
+    defer interactive.deinit();
 
     const stdin_fd = posix.STDIN_FILENO;
+    const Restore = struct {
+        fn cb(ctx: ?*anyopaque) void {
+            const out = @as(*std.fs.File, @ptrCast(@alignCast(ctx.?)));
+            _ = out.writeAll("Restored IO callback fired.\n") catch {};
+        }
+    };
+
+    var guard = interactive.restoredIo(Restore.cb, @as(?*anyopaque, @ptrCast(&stdout)));
+    try stdout.writeAll("Entering raw mode (press any key)...\n");
     const token = try enableRawMode(stdin_fd);
-    {
-        const byte = try readByte(stdin_fd);
-        var buf: [64]u8 = undefined;
-        const msg = try std.fmt.bufPrint(&buf, "Captured byte 0x{X:0>2}\n", .{byte});
-        try stdout.writeAll(msg);
-    }
+    const byte = try readByte(stdin_fd);
     disableRawMode(stdin_fd, token);
-    try stdout.writeAll("Raw mode disabled — terminal restored.\n");
+    try stdout.writeAll("Raw mode disabled via guard scope.\n");
+    var buf: [64]u8 = undefined;
+    const msg = try std.fmt.bufPrint(&buf, "Captured byte 0x{X:0>2}\n", .{byte});
+    try stdout.writeAll(msg);
+    guard.restore();
+    try stdout.writeAll("Guard restored; depth back to normal.\n");
 }
 
 fn enableRawMode(fd: posix.fd_t) !posix.termios {
