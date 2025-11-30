@@ -185,8 +185,63 @@ pub const Node = union(enum) {
     }
 
     pub fn render(self: Node, ctx: *RenderContext) anyerror!void {
-        _ = self;
-        _ = ctx;
+        switch (self) {
+            .empty => {},
+            .text => |text_node| {
+                if (ctx.drawer != null) {
+                    try ctxDraw(ctx, ctx.origin_x, ctx.origin_y, text_node.content);
+                } else {
+                    try ctxWrite(ctx, text_node.content);
+                }
+            },
+            .paragraph => |p| try renderParagraph(p, ctx),
+            .separator => |s| try s.render(ctx),
+            .window => |w| {
+                if (ctx.drawer != null) {
+                    try ctxDraw(ctx, ctx.origin_x, ctx.origin_y, "[");
+                    try ctxDraw(ctx, ctx.origin_x + 1, ctx.origin_y, w.title);
+                    try ctxDraw(ctx, ctx.origin_x + 1 + @as(i32, @intCast(w.title.len)), ctx.origin_y, "]");
+                } else {
+                    try ctxWrite(ctx, "[");
+                    try ctxWrite(ctx, w.title);
+                    try ctxWrite(ctx, "]");
+                }
+            },
+            .gauge => |g| try g.render(ctx),
+            .spinner => |s| {
+                const frame = s.currentFrame();
+                if (ctx.drawer != null) {
+                    try ctxDraw(ctx, ctx.origin_x, ctx.origin_y, frame);
+                } else {
+                    try ctxWrite(ctx, frame);
+                }
+            },
+            .graph => |g| try g.render(ctx),
+            .canvas => |c| try c.render(ctx),
+            .canvas_animation => |anim| try anim.current().render(ctx),
+            .gradient_text => |g| try g.render(ctx),
+            .gridbox => |g| try g.render(ctx),
+            .container => |container_node| try container_node.render(ctx),
+            .frame => |f| try renderFrameNode(f, ctx),
+            .size => |s| try s.child.*.render(ctx),
+            .filler => {},
+            .focus => |fx| try fx.child.*.render(ctx),
+            .flexbox => |fb| {
+                const kids = if (fb.owned_children) |oc| oc else fb.children;
+                for (kids) |child| try child.render(ctx);
+            },
+            .dbox => |db| {
+                const kids = if (db.owned_children) |oc| oc else db.children;
+                for (kids) |child| try child.render(ctx);
+            },
+            .cursor => |c| if (c.child) |ch| try ch.*.render(ctx),
+            .style => |s| try renderStyledChild(s, ctx),
+            .table => |t| try t.render(ctx),
+            .automerge => |a| try a.render(ctx),
+            .scroll => |s| try s.render(ctx),
+            .center => |c| try c.render(ctx),
+            .custom => |c| try c.callback(c.user_data, ctx),
+        }
     }
 
     pub fn select(self: Node, selection: *Selection) void {
@@ -808,6 +863,123 @@ pub const StyleDecorator = struct {
     child: *const Node,
     attrs: StyleAttributes = .{},
 };
+
+fn renderParagraph(p: Paragraph, ctx: *RenderContext) !void {
+    const width: usize = if (p.width == 0) 1 else p.width;
+    if (ctx.drawer != null) {
+        var row: usize = 0;
+        var idx: usize = 0;
+        while (idx < p.content.len) : (row += 1) {
+            const remaining = p.content.len - idx;
+            const take = @min(width, remaining);
+            try ctxDraw(ctx, ctx.origin_x, ctx.origin_y + @as(i32, @intCast(row)), p.content[idx .. idx + take]);
+            if (take < width) {
+                var col: usize = take;
+                while (col < width) : (col += 1) try ctxDraw(ctx, ctx.origin_x + @as(i32, @intCast(col)), ctx.origin_y + @as(i32, @intCast(row)), " ");
+            }
+            idx += take;
+        }
+        if (p.content.len == 0) {
+            var col: usize = 0;
+            while (col < width) : (col += 1) try ctxDraw(ctx, ctx.origin_x + @as(i32, @intCast(col)), ctx.origin_y, " ");
+        }
+        return;
+    }
+
+    var idx: usize = 0;
+    var row_count: usize = 0;
+    while (idx < p.content.len) : (row_count += 1) {
+        const remaining = p.content.len - idx;
+        const take = @min(width, remaining);
+        try ctxWrite(ctx, p.content[idx .. idx + take]);
+        if (take < width) {
+            var pad: usize = width - take;
+            while (pad > 0) : (pad -= 1) try ctxWrite(ctx, " ");
+        }
+        try ctxWrite(ctx, "\n");
+        idx += take;
+    }
+
+    if (p.content.len == 0) {
+        var pad: usize = 0;
+        while (pad < width) : (pad += 1) try ctxWrite(ctx, " ");
+        try ctxWrite(ctx, "\n");
+    }
+}
+
+fn renderStyledChild(s: StyleDecorator, ctx: *RenderContext) !void {
+    const saved = ctx.style;
+    const merged = mergeStyles(ctx.style, s.attrs);
+    ctx.style = merged;
+    if (ctx.drawer == null) try applyAnsiStyle(ctx, merged);
+    try s.child.*.render(ctx);
+    ctx.style = saved;
+    if (ctx.drawer == null) try applyAnsiStyle(ctx, saved);
+}
+
+fn renderFrameNode(f: Frame, ctx: *RenderContext) !void {
+    if (ctx.drawer != null) {
+        try frame_mod.renderFrame(f, ctx);
+        return;
+    }
+
+    const charset = f.charset();
+    const child_req = f.child.*.computeRequirement();
+    const inner_width = child_req.min_width;
+    const inner_height = child_req.min_height;
+
+    // Render child content into a temporary buffer to preserve styling.
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var buffer = std.array_list.Managed(u8).init(arena.allocator());
+    defer buffer.deinit();
+    const SinkWriter = struct {
+        fn write(user_data: *anyopaque, data: []const u8) anyerror!void {
+            const buf = @as(*std.array_list.Managed(u8), @ptrCast(@alignCast(user_data)));
+            try buf.appendSlice(data);
+        }
+    };
+    var child_ctx = RenderContext{
+        .sink = .{ .user_data = @as(*anyopaque, @ptrCast(&buffer)), .writeAll = SinkWriter.write },
+        .allocator = arena.allocator(),
+        .style = ctx.style,
+    };
+    try f.child.*.render(&child_ctx);
+
+    // Top border
+    try ctxWrite(ctx, charset.top_left);
+    var col: usize = 0;
+    while (col < inner_width) : (col += 1) try ctxWrite(ctx, charset.horizontal);
+    try ctxWrite(ctx, charset.top_right);
+    try ctxWrite(ctx, "\n");
+
+    // Body
+    var line_start: usize = 0;
+    var row: usize = 0;
+    while (row < inner_height) : (row += 1) {
+        var line_end = line_start;
+        while (line_end < buffer.items.len and buffer.items[line_end] != '\n') : (line_end += 1) {}
+        const line = buffer.items[line_start..line_end];
+        line_start = if (line_end < buffer.items.len) line_end + 1 else buffer.items.len;
+
+        try ctxWrite(ctx, charset.vertical);
+        try ctxWrite(ctx, line);
+        if (line.len < inner_width) {
+            var padding = inner_width - line.len;
+            while (padding > 0) : (padding -= 1) try ctxWrite(ctx, " ");
+        }
+        try ctxWrite(ctx, charset.vertical);
+        try ctxWrite(ctx, "\n");
+    }
+
+    // Bottom border
+    try ctxWrite(ctx, charset.bottom_left);
+    col = 0;
+    while (col < inner_width) : (col += 1) try ctxWrite(ctx, charset.horizontal);
+    try ctxWrite(ctx, charset.bottom_right);
+    try ctxWrite(ctx, "\n");
+    try ctxWrite(ctx, "\x1b[0m");
+}
 
 pub const Dbox = struct {
     children: []const Node = &[_]Node{},
