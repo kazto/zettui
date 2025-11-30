@@ -7,6 +7,30 @@ pub const ScrollIndicator = struct {
     bottom: bool = false,
 };
 
+pub const Axis = enum { horizontal, vertical };
+
+pub const Constraint = union(enum) {
+    none,
+    exact: usize,
+    at_least: usize,
+    at_most: usize,
+    range: struct { min: usize, max: usize },
+
+    pub fn clamp(self: Constraint, value: usize) usize {
+        return switch (self) {
+            .none => value,
+            .exact => |v| v,
+            .at_least => |min| if (value < min) min else value,
+            .at_most => |max| if (value > max) max else value,
+            .range => |r| blk: {
+                const hi = if (r.max < r.min) r.min else r.max;
+                const lo = @min(r.min, hi);
+                break :blk std.math.clamp(value, lo, hi);
+            },
+        };
+    }
+};
+
 pub const Requirement = struct {
     min_width: usize = 0,
     min_height: usize = 0,
@@ -468,9 +492,10 @@ pub const Node = union(enum) {
             },
             .flexbox => |fb| blkFlex: {
                 var req = Requirement{};
+                const cfg = fb.config.normalized();
                 const count = fb.children.len;
-                const gap_total: usize = if (count > 0) fb.gap * (count - 1) else 0;
-                switch (fb.direction) {
+                const gap_total: usize = if (count > 0) cfg.gap * (count - 1) else 0;
+                switch (cfg.direction) {
                     .row => {
                         req.min_height = 0;
                         req.min_width = gap_total;
@@ -490,6 +515,9 @@ pub const Node = union(enum) {
                         }
                     },
                 }
+                const clamped = cfg.clampSize(req.min_width, req.min_height);
+                req.min_width = clamped.width;
+                req.min_height = clamped.height;
                 break :blkFlex req;
             },
             .dbox => |db| blkD: {
@@ -813,19 +841,20 @@ pub const Node = union(enum) {
             .flexbox => |fb| {
                 var i: usize = 0;
                 const kids = if (fb.owned_children) |oc| oc else fb.children;
+                const cfg = fb.config.normalized();
                 if (ctx.drawer != null and ctx.allocator != null) {
                     const alloc = ctx.allocator.?;
                     const boxes = try fb.layout(alloc);
                     for (kids, 0..) |child, idx| {
                         if (i > 0) {
-                            switch (fb.direction) {
+                            switch (cfg.direction) {
                                 .row => {
                                     var g: usize = 0;
-                                    while (g < fb.gap) : (g += 1) try ctxWrite(ctx, " ");
+                                    while (g < cfg.gap) : (g += 1) try ctxWrite(ctx, " ");
                                 },
                                 .column => {
                                     var g2: usize = 0;
-                                    while (g2 < fb.gap) : (g2 += 1) try ctxWrite(ctx, "\n");
+                                    while (g2 < cfg.gap) : (g2 += 1) try ctxWrite(ctx, "\n");
                                 },
                             }
                         }
@@ -838,14 +867,14 @@ pub const Node = union(enum) {
                 } else {
                     for (kids) |child| {
                         if (i > 0) {
-                            switch (fb.direction) {
+                            switch (cfg.direction) {
                                 .row => {
                                     var g: usize = 0;
-                                    while (g < fb.gap) : (g += 1) try ctxWrite(ctx, " ");
+                                    while (g < cfg.gap) : (g += 1) try ctxWrite(ctx, " ");
                                 },
                                 .column => {
                                     var g2: usize = 0;
-                                    while (g2 < fb.gap) : (g2 += 1) try ctxWrite(ctx, "\n");
+                                    while (g2 < cfg.gap) : (g2 += 1) try ctxWrite(ctx, "\n");
                                 },
                             }
                         }
@@ -1502,8 +1531,15 @@ pub const CanvasBuilder = struct {
     }
 
     pub fn drawPoint(self: *CanvasBuilder, x: usize, y: usize, ch: u8) void {
-        if (y >= self.rows.len or x >= self.width) return;
-        self.rows[y][x] = ch;
+        self.setPixelSigned(@intCast(x), @intCast(y), ch);
+    }
+
+    fn setPixelSigned(self: *CanvasBuilder, x: i32, y: i32, ch: u8) void {
+        if (x < 0 or y < 0) return;
+        const ux: usize = @intCast(x);
+        const uy: usize = @intCast(y);
+        if (uy >= self.rows.len or ux >= self.width) return;
+        self.rows[uy][ux] = ch;
     }
 
     pub fn drawHorizontalLine(self: *CanvasBuilder, y: usize, x0: usize, x1: usize, ch: u8) void {
@@ -1518,6 +1554,116 @@ pub const CanvasBuilder = struct {
         var row = @min(y0, y1);
         const end = @min(@max(y0, y1), self.height - 1);
         while (row <= end) : (row += 1) self.rows[row][x] = ch;
+    }
+
+    pub fn drawLine(self: *CanvasBuilder, start_x: i32, start_y: i32, end_x: i32, end_y: i32, ch: u8) void {
+        var x0 = start_x;
+        var y0 = start_y;
+        const x1 = end_x;
+        const y1 = end_y;
+
+        const dx = absDiff(x1, x0);
+        const sx: i32 = if (x0 < x1) 1 else -1;
+        const dy = -absDiff(y1, y0);
+        const sy: i32 = if (y0 < y1) 1 else -1;
+        var err = dx + dy;
+
+        while (true) {
+            self.setPixelSigned(x0, y0, ch);
+            if (x0 == x1 and y0 == y1) break;
+            const e2 = err * 2;
+            if (e2 >= dy) {
+                err += dy;
+                x0 += sx;
+            }
+            if (e2 <= dx) {
+                err += dx;
+                y0 += sy;
+            }
+        }
+    }
+
+    pub fn drawCircle(self: *CanvasBuilder, center_x: i32, center_y: i32, radius: usize, ch: u8) void {
+        if (radius == 0) {
+            self.setPixelSigned(center_x, center_y, ch);
+            return;
+        }
+        var x: i32 = @intCast(radius);
+        var y: i32 = 0;
+        var err: i32 = 0;
+        while (x >= y) : (y += 1) {
+            self.plotCirclePoints(center_x, center_y, x, y, ch);
+            err += 1 + 2 * y;
+            if (2 * (err - x) + 1 > 0) {
+                x -= 1;
+                err += 1 - 2 * x;
+            }
+        }
+    }
+
+    fn plotCirclePoints(self: *CanvasBuilder, cx: i32, cy: i32, x: i32, y: i32, ch: u8) void {
+        self.setPixelSigned(cx + x, cy + y, ch);
+        self.setPixelSigned(cx - x, cy + y, ch);
+        self.setPixelSigned(cx + x, cy - y, ch);
+        self.setPixelSigned(cx - x, cy - y, ch);
+        self.setPixelSigned(cx + y, cy + x, ch);
+        self.setPixelSigned(cx - y, cy + x, ch);
+        self.setPixelSigned(cx + y, cy - x, ch);
+        self.setPixelSigned(cx - y, cy - x, ch);
+    }
+
+    pub fn drawEllipse(self: *CanvasBuilder, center_x: i32, center_y: i32, radius_x: usize, radius_y: usize, ch: u8) void {
+        if (radius_x == 0 and radius_y == 0) {
+            self.setPixelSigned(center_x, center_y, ch);
+            return;
+        }
+        if (radius_x == 0) {
+            self.drawLine(center_x, center_y - @as(i32, @intCast(radius_y)), center_x, center_y + @as(i32, @intCast(radius_y)), ch);
+            return;
+        }
+        if (radius_y == 0) {
+            self.drawLine(center_x - @as(i32, @intCast(radius_x)), center_y, center_x + @as(i32, @intCast(radius_x)), center_y, ch);
+            return;
+        }
+
+        const rx: f64 = @floatFromInt(radius_x);
+        const ry: f64 = @floatFromInt(radius_y);
+        const rx2 = rx * rx;
+        const ry2 = ry * ry;
+
+        var x: f64 = 0;
+        var y: f64 = ry;
+        var p1: f64 = ry2 - (rx2 * ry) + (0.25 * rx2);
+
+        while (2 * ry2 * x < 2 * rx2 * y) {
+            self.plotEllipsePoints(center_x, center_y, @intFromFloat(x), @intFromFloat(y), ch);
+            if (p1 < 0) {
+                x += 1;
+                p1 += 2 * ry2 * x + ry2;
+            } else {
+                x += 1;
+                y -= 1;
+                p1 += 2 * ry2 * x - 2 * rx2 * y + ry2;
+            }
+        }
+
+        var p2: f64 = ry2 * (x + 0.5) * (x + 0.5) + rx2 * (y - 1) * (y - 1) - rx2 * ry2;
+        while (y >= 0) : (y -= 1) {
+            self.plotEllipsePoints(center_x, center_y, @intFromFloat(x), @intFromFloat(y), ch);
+            if (p2 > 0) {
+                p2 += rx2 - (2 * rx2 * y);
+            } else {
+                x += 1;
+                p2 += 2 * ry2 * x - 2 * rx2 * y + rx2;
+            }
+        }
+    }
+
+    fn plotEllipsePoints(self: *CanvasBuilder, cx: i32, cy: i32, x: i32, y: i32, ch: u8) void {
+        self.setPixelSigned(cx + x, cy + y, ch);
+        self.setPixelSigned(cx - x, cy + y, ch);
+        self.setPixelSigned(cx + x, cy - y, ch);
+        self.setPixelSigned(cx - x, cy - y, ch);
     }
 
     pub fn drawText(self: *CanvasBuilder, x: usize, y: usize, text: []const u8) void {
@@ -1555,6 +1701,10 @@ pub const CanvasBuilder = struct {
         self.owns_rows = false;
     }
 };
+
+fn absDiff(a: i32, b: i32) i32 {
+    return if (a >= b) a - b else b - a;
+}
 
 pub const Table = struct {
     headers: []const []const u8 = &[_][]const u8{},
@@ -1835,31 +1985,79 @@ pub const Focus = struct {
 
 pub const FlexDirection = enum { row, column };
 
-pub const Flexbox = struct {
-    children: []const Node = &[_]Node{},
+pub const FlexboxConfig = struct {
     direction: FlexDirection = .row,
     gap: usize = 0,
+    main_axis: Axis = .horizontal,
+    main_constraint: Constraint = .none,
+    cross_constraint: Constraint = .none,
+
+    pub fn normalized(self: FlexboxConfig) FlexboxConfig {
+        var cfg = self;
+        cfg.main_axis = switch (cfg.direction) {
+            .row => .horizontal,
+            .column => .vertical,
+        };
+        return cfg;
+    }
+
+    pub fn clampSize(self: FlexboxConfig, width: usize, height: usize) struct { width: usize, height: usize } {
+        var out_w = width;
+        var out_h = height;
+        switch (self.main_axis) {
+            .horizontal => {
+                out_w = self.main_constraint.clamp(out_w);
+                out_h = self.cross_constraint.clamp(out_h);
+            },
+            .vertical => {
+                out_h = self.main_constraint.clamp(out_h);
+                out_w = self.cross_constraint.clamp(out_w);
+            },
+        }
+        return .{ .width = out_w, .height = out_h };
+    }
+};
+
+pub const Flexbox = struct {
+    children: []const Node = &[_]Node{},
+    config: FlexboxConfig = .{},
     box: Box = .{},
     owned_children: ?[]Node = null,
 
     pub fn layout(self: Flexbox, allocator: std.mem.Allocator) ![]Box {
+        const cfg = self.config.normalized();
+        const limits = cfg.clampSize(@intCast(self.box.width), @intCast(self.box.height));
         const boxes = try allocator.alloc(Box, self.children.len);
         var x: i32 = self.box.origin_x;
         var y: i32 = self.box.origin_y;
         var i: usize = 0;
-        switch (self.direction) {
+        switch (cfg.direction) {
             .row => {
                 while (i < self.children.len) : (i += 1) {
                     const cr = self.children[i].computeRequirement();
-                    boxes[i] = .{ .origin_x = x, .origin_y = y, .width = @intCast(cr.min_width), .height = @intCast(@min(@as(usize, self.box.height), cr.min_height)) };
-                    x += @as(i32, @intCast(cr.min_width + self.gap));
+                    const width: usize = @min(cr.min_width, limits.width);
+                    const height: usize = @min(cr.min_height, limits.height);
+                    boxes[i] = .{
+                        .origin_x = x,
+                        .origin_y = y,
+                        .width = @intCast(width),
+                        .height = @intCast(height),
+                    };
+                    x += @as(i32, @intCast(width + cfg.gap));
                 }
             },
             .column => {
                 while (i < self.children.len) : (i += 1) {
                     const cr = self.children[i].computeRequirement();
-                    boxes[i] = .{ .origin_x = x, .origin_y = y, .width = @intCast(@min(@as(usize, self.box.width), cr.min_width)), .height = @intCast(cr.min_height) };
-                    y += @as(i32, @intCast(cr.min_height + self.gap));
+                    const width: usize = @min(cr.min_width, limits.width);
+                    const height: usize = @min(cr.min_height, limits.height);
+                    boxes[i] = .{
+                        .origin_x = x,
+                        .origin_y = y,
+                        .width = @intCast(width),
+                        .height = @intCast(height),
+                    };
+                    y += @as(i32, @intCast(height + cfg.gap));
                 }
             },
         }
@@ -2190,6 +2388,38 @@ test "canvas render pads missing cells" {
     try std.testing.expectEqualStrings("xo.\nox.\n...\n", managed.items);
 }
 
+test "canvas builder draws diagonal line" {
+    var builder = try CanvasBuilder.init(std.testing.allocator, 4, 4, '.');
+    defer builder.deinit();
+    builder.drawLine(0, 0, 3, 3, '#');
+    const canvas = try builder.toCanvas();
+    defer {
+        for (canvas.rows) |row| std.testing.allocator.free(@constCast(row));
+        std.testing.allocator.free(canvas.rows);
+        std.testing.allocator.free(builder.rows);
+    }
+    try std.testing.expectEqualStrings("#...", canvas.rows[0]);
+    try std.testing.expectEqualStrings(".#..", canvas.rows[1]);
+    try std.testing.expectEqualStrings("..#.", canvas.rows[2]);
+    try std.testing.expectEqualStrings("...#", canvas.rows[3]);
+}
+
+test "canvas builder draws ellipse outline" {
+    var builder = try CanvasBuilder.init(std.testing.allocator, 9, 7, ' ');
+    defer builder.deinit();
+    builder.drawEllipse(4, 3, 3, 2, '*');
+    const canvas = try builder.toCanvas();
+    defer {
+        for (canvas.rows) |row| std.testing.allocator.free(@constCast(row));
+        std.testing.allocator.free(canvas.rows);
+        std.testing.allocator.free(builder.rows);
+    }
+    try std.testing.expectEqual('*', canvas.rows[1][4]);
+    try std.testing.expectEqual('*', canvas.rows[3][1]);
+    try std.testing.expectEqual('*', canvas.rows[3][7]);
+    try std.testing.expectEqual('*', canvas.rows[5][4]);
+}
+
 test "style decorator emits ansi sequences when rendering" {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
@@ -2368,8 +2598,7 @@ test "focus decorator sets requirement focus" {
 
 test "flexbox row aggregates widths plus gap" {
     const n = Node{ .flexbox = .{
-        .direction = .row,
-        .gap = 1,
+        .config = .{ .direction = .row, .gap = 1 },
         .children = &[_]Node{
             .{ .text = .{ .content = "ab" } },
             .{ .text = .{ .content = "tool" } },
@@ -2382,8 +2611,7 @@ test "flexbox row aggregates widths plus gap" {
 
 test "flexbox column aggregates heights plus gap" {
     const n = Node{ .flexbox = .{
-        .direction = .column,
-        .gap = 2,
+        .config = .{ .direction = .column, .gap = 2 },
         .children = &[_]Node{
             .{ .text = .{ .content = "ab" } },
             .{ .text = .{ .content = "tool" } },
@@ -2392,6 +2620,22 @@ test "flexbox column aggregates heights plus gap" {
     const r = n.computeRequirement();
     try std.testing.expectEqual(@as(usize, 4), r.min_width);
     try std.testing.expectEqual(@as(usize, 4), r.min_height); // 1 + 2 + 1
+}
+
+test "flexbox config constraints clamp requirement" {
+    const n = Node{ .flexbox = .{
+        .config = .{
+            .direction = .row,
+            .main_constraint = .{ .at_least = 10 },
+            .cross_constraint = .{ .at_most = 1 },
+        },
+        .children = &[_]Node{
+            .{ .text = .{ .content = "abcd" } },
+        },
+    } };
+    const r = n.computeRequirement();
+    try std.testing.expectEqual(@as(usize, 10), r.min_width);
+    try std.testing.expectEqual(@as(usize, 1), r.min_height);
 }
 
 test "dbox aggregates by max width/height" {
@@ -2545,8 +2789,7 @@ test "container vertical layout assigns stacked boxes" {
 
 test "flexbox row layout assigns consecutive boxes with gaps" {
     var node = Node{ .flexbox = .{
-        .direction = .row,
-        .gap = 1,
+        .config = .{ .direction = .row, .gap = 1 },
         .children = &[_]Node{
             .{ .text = .{ .content = "a" } },
             .{ .text = .{ .content = "bc" } },

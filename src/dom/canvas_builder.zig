@@ -133,6 +133,53 @@ pub const CanvasBuilder = struct {
         }
     }
 
+    pub fn drawEllipse(self: *CanvasBuilder, center: Coord, radius_x: usize, radius_y: usize, ch: u8) void {
+        if (radius_x == 0 and radius_y == 0) {
+            self.setPixel(center, ch);
+            return;
+        }
+        if (radius_x == 0) {
+            self.drawLine(.{ .x = center.x, .y = center.y - @as(i32, @intCast(radius_y)) }, .{ .x = center.x, .y = center.y + @as(i32, @intCast(radius_y)) }, ch);
+            return;
+        }
+        if (radius_y == 0) {
+            self.drawLine(.{ .x = center.x - @as(i32, @intCast(radius_x)), .y = center.y }, .{ .x = center.x + @as(i32, @intCast(radius_x)), .y = center.y }, ch);
+            return;
+        }
+
+        const rx: f64 = @floatFromInt(radius_x);
+        const ry: f64 = @floatFromInt(radius_y);
+        const rx2 = rx * rx;
+        const ry2 = ry * ry;
+
+        var x: f64 = 0;
+        var y: f64 = ry;
+        var p1: f64 = ry2 - (rx2 * ry) + (0.25 * rx2);
+
+        while (2 * ry2 * x < 2 * rx2 * y) {
+            self.plotEllipsePoints(center, @intFromFloat(x), @intFromFloat(y), ch);
+            if (p1 < 0) {
+                x += 1;
+                p1 += 2 * ry2 * x + ry2;
+            } else {
+                x += 1;
+                y -= 1;
+                p1 += 2 * ry2 * x - 2 * rx2 * y + ry2;
+            }
+        }
+
+        var p2: f64 = ry2 * (x + 0.5) * (x + 0.5) + rx2 * (y - 1) * (y - 1) - rx2 * ry2;
+        while (y >= 0) : (y -= 1) {
+            self.plotEllipsePoints(center, @intFromFloat(x), @intFromFloat(y), ch);
+            if (p2 > 0) {
+                p2 += rx2 - (2 * rx2 * y);
+            } else {
+                x += 1;
+                p2 += 2 * ry2 * x - 2 * rx2 * y + rx2;
+            }
+        }
+    }
+
     fn plotCirclePoints(self: *CanvasBuilder, center: Coord, x: i32, y: i32, ch: u8) void {
         const cx = center.x;
         const cy = center.y;
@@ -144,6 +191,15 @@ pub const CanvasBuilder = struct {
         self.setPixelInternal(cx - y, cy + x, ch);
         self.setPixelInternal(cx + y, cy - x, ch);
         self.setPixelInternal(cx - y, cy - x, ch);
+    }
+
+    fn plotEllipsePoints(self: *CanvasBuilder, center: Coord, x: i32, y: i32, ch: u8) void {
+        const cx = center.x;
+        const cy = center.y;
+        self.setPixelInternal(cx + x, cy + y, ch);
+        self.setPixelInternal(cx - x, cy + y, ch);
+        self.setPixelInternal(cx + x, cy - y, ch);
+        self.setPixelInternal(cx - x, cy - y, ch);
     }
 
     pub fn writeText(self: *CanvasBuilder, origin: Coord, text: []const u8) void {
@@ -216,4 +272,18 @@ test "CanvasBuilder drawCircle plots symmetric points" {
     try std.testing.expectEqualStrings("o.....o", rows[4]);
     try std.testing.expectEqualStrings(".o...o.", rows[5]);
     try std.testing.expectEqualStrings("..ooo..", rows[6]);
+}
+
+test "CanvasBuilder drawEllipse renders oval edges" {
+    var builder = try CanvasBuilder.init(std.testing.allocator, 9, 7, '.');
+    defer builder.deinit();
+    builder.drawEllipse(.{ .x = 4, .y = 3 }, 3, 2, '*');
+    const rows = switch (builder.toNode()) {
+        .canvas => |c| c.rows,
+        else => unreachable,
+    };
+    try std.testing.expectEqual('*', rows[1][4]);
+    try std.testing.expectEqual('*', rows[3][1]);
+    try std.testing.expectEqual('*', rows[3][7]);
+    try std.testing.expectEqual('*', rows[5][4]);
 }
