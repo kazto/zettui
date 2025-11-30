@@ -29,6 +29,11 @@ fn renderDomPanel(stdout: *std.fs.File, allocator: std.mem.Allocator) !void {
     var graph = zettui.dom.elements.graphWidth(&values, 32, 6);
     try graph.render(&ctx);
     try stdout.writeAll("\n");
+
+    try stdout.writeAll("Package tree (html_like + tree):\n");
+    const tree_text = try packageTreeText(allocator);
+    defer allocator.free(tree_text);
+    try stdout.writeAll(tree_text);
 }
 
 fn renderComponentPanel(stdout: *std.fs.File, allocator: std.mem.Allocator) !void {
@@ -38,6 +43,18 @@ fn renderComponentPanel(stdout: *std.fs.File, allocator: std.mem.Allocator) !voi
     try buttons.render();
     try stdout.writeAll("\n");
     try gallery.render();
+    try stdout.writeAll("\n");
+
+    const left = try zettui.component.widgets.button(allocator, .{ .label = "Logs", .visual = .ghost, .frame = .inline_frame });
+    const right = try zettui.component.widgets.button(allocator, .{ .label = "Packages", .visual = .ghost, .frame = .inline_frame });
+    const split = try zettui.component.widgets.splitWithClampIndicator(allocator, left, right, .{
+        .orientation = .horizontal,
+        .ratio = 0.45,
+        .min_ratio = 0.3,
+        .max_ratio = 0.7,
+        .handle = "Clamp indicator",
+    });
+    try split.render();
     try stdout.writeAll("\n");
 }
 
@@ -62,5 +79,47 @@ fn makeContext(stdout: *std.fs.File, allocator: std.mem.Allocator) zettui.dom.Re
     return .{
         .sink = .{ .user_data = @as(*anyopaque, @ptrCast(stdout)), .writeAll = SinkWriter.write },
         .allocator = allocator,
+    };
+}
+
+fn packageTreeText(allocator: std.mem.Allocator) ![]u8 {
+    const roots = [_]zettui.dom.elements.TreeEntry{
+        .{
+            .label = "packages",
+            .status = .plain,
+            .children = &[_]zettui.dom.elements.TreeEntry{
+                .{ .label = "ftxui", .status = .installing },
+                .{
+                    .label = "zettui",
+                    .status = .success,
+                    .children = &[_]zettui.dom.elements.TreeEntry{
+                        .{ .label = "dom", .status = .success },
+                        .{ .label = "component", .status = .success },
+                        .{ .label = "screen", .status = .success },
+                    },
+                },
+                .{ .label = "demo-tool", .status = .failure },
+            },
+        },
+    };
+    const tree_node = try zettui.dom.elements.treeOwned(allocator, &roots);
+    return switch (tree_node) {
+        .text => |t| try allocator.dupe(u8, t.content),
+        else => blk: {
+            var buffer = std.array_list.Managed(u8).init(allocator);
+            errdefer buffer.deinit();
+            const Sink = struct {
+                fn write(user_data: *anyopaque, bytes: []const u8) anyerror!void {
+                    const list = @as(*std.array_list.Managed(u8), @ptrCast(@alignCast(user_data)));
+                    try list.appendSlice(bytes);
+                }
+            };
+            var ctx = zettui.dom.RenderContext{
+                .sink = .{ .user_data = @as(*anyopaque, @ptrCast(&buffer)), .writeAll = Sink.write },
+                .allocator = allocator,
+            };
+            try tree_node.render(&ctx);
+            break :blk try buffer.toOwnedSlice();
+        },
     };
 }

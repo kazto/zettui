@@ -159,5 +159,5 @@ Cross-reference `docs/examples/ftxui-mapping.md` for the command cheatsheet.
 #### Pending Work Items
 - [x] DOM: Implement outstanding parity items marked `Pending` in `docs/examples/ftxui-mapping.md` (dbox/table/vertical gauge/256-color/HSV/hyperlink samples now covered).
 - [x] Component: Finish remaining samples (`selection.cpp` in selectors) and update `examples/component/*` plus any missing API hooks.
-- [ ] Screen: Expand `examples/screen/*` to include richer `ScreenInteractive` behavior, capturing `custom_loop`, `nested_screen`, and restored IO parity, then mark the entries as Done.
-- [ ] Integration: Extend `examples/integration/gallery.zig` / `homescreen.zig` with package-manager style trees, resizable clamp indicators, and other FTXUI hybrid demos still marked pending.
+- [x] Screen: Expand `examples/screen/*` to include richer `ScreenInteractive` behavior, capturing `custom_loop`, `nested_screen`, and restored IO parity, then mark the entries as Done.
+- [x] Integration: Extend `examples/integration/gallery.zig` / `homescreen.zig` with package-manager style trees, resizable clamp indicators, and other FTXUI hybrid demos still marked pending.
