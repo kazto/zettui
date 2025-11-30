@@ -21,10 +21,10 @@ Use `zig build` for a full compile; add `-Doptimize=ReleaseFast` when measuring 
 ### Local Cache Directory
 Prefer a repo-local Zig global cache to avoid polluting user-level caches and to improve reproducibility across agents. Pass `ZIG_GLOBAL_CACHE_DIR=./.zig-cache` to Zig invocations:
 
-- Build: `ZIG_GLOBAL_CACHE_DIR=./.zig-cache zig build`
-- Run demo: `ZIG_GLOBAL_CACHE_DIR=./.zig-cache zig build run`
-- Test (build step): `ZIG_GLOBAL_CACHE_DIR=./.zig-cache zig build test`
-- Test single file: `ZIG_GLOBAL_CACHE_DIR=./.zig-cache zig test src/path/to/module.zig`
+- Build: `./build.sh build`
+- Run demo: `./build.sh build run`
+- Test (build step): `./build.sh build test`
+- Test single file: `./build.sh test src/path/to/module.zig`
 
 Sandbox limitation (Codex CLI): the workspace sits on an overlay filesystem that prevents Zig 0.15.x from renaming its `.zig-cache/tmp/*` directories into `.zig-cache/o/*`. Commands such as `zig build` or `zig test` therefore fail with `error: RenameAcrossMountPoints`. Run these builds outside the sandbox—or inside an environment without that mount mismatch—when you need executable artifacts or to verify tests.
 
