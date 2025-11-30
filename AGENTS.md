@@ -13,6 +13,8 @@
 ## Project Structure & Module Organization
 Source code lives under `src/`, mirroring the DOM, Component, and Screen modules described in `docs/specification.md`. Public headers or Zig packages should align with their implementation files to keep the inventory in `docs/tasks.md` trustworthy. Documentation and planning artifacts reside in `docs/`; examples and demos belong in `examples/`. Keep module-specific tests beside their targets to simplify cross-referencing during reviews.
 
+If the AI is working with `git worktree`, in `.git/wt/*` directory, The AI must not perform any operations on files outside the worktree.
+
 ## Build, Test, and Development Commands
 Use `zig build` for a full compile; add `-Doptimize=ReleaseFast` when measuring performance regressions. Run `zig build run` to launch the default demo defined in `build.zig`. For tests, run the full suite via `zig test src/lib.zig`; prefer `zig test` (which compiles and executes) over `zig build test` (which may only build the test binary). Use `zig test src/path/to/module.zig` when iterating on a single file. Regenerate formatting with `zig fmt src/ examples/ docs/` before committing.
 
