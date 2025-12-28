@@ -6,19 +6,28 @@ pub fn main() !void {
     try stdout_file.writeAll("=== DOM Canvas, Graph, Gauge, and Spinner ===\n\n");
 
     var ctx = makeContext(&stdout_file);
+    const allocator = std.heap.page_allocator;
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+
     try renderGraph(&ctx, &stdout_file);
     try stdout_file.writeAll("\n");
     try renderGauge(&ctx, &stdout_file);
     try stdout_file.writeAll("\n");
     try renderCanvas(&ctx, &stdout_file);
     try stdout_file.writeAll("\n");
+    try stdout_file.writeAll("\n");
+    try renderProceduralCanvas(&ctx, &stdout_file, a);
+    try stdout_file.writeAll("\n");
     try animateSpinner(&stdout_file);
 }
 
 fn renderGraph(ctx: *zettui.dom.RenderContext, stdout: *std.fs.File) !void {
     try stdout.writeAll("-- Graph (sparkline) --\n");
-    const values = [_]f32{ 1, 2, 1.5, 3.5, 2.5, 4, 3.8, 2.2, 3.6, 2.9 };
-    var node = zettui.dom.elements.graphWidth(&values, 40, 8);
+    try stdout.writeAll("-- Graph (sparkline) --\n");
+    const values = [_]f32{ 1, 2, 1.5, 3.5, 2.5, 4, 3.8, 2.2, 3.6, 2.9, 3.0, 4.2, 2.1, 1.5, 2.8, 3.5, 4.0, 3.2, 2.5, 1.8 };
+    var node = zettui.dom.elements.graphWidth(&values, 60, 8);
     try node.render(ctx);
     try stdout.writeAll("\n");
 }
@@ -59,6 +68,33 @@ fn renderCanvas(ctx: *zettui.dom.RenderContext, stdout: *std.fs.File) !void {
     };
     const canvas = zettui.dom.elements.canvas(&rows);
     try canvas.render(ctx);
+    try stdout.writeAll("\n");
+    try canvas.render(ctx);
+    try stdout.writeAll("\n");
+}
+
+fn renderProceduralCanvas(ctx: *zettui.dom.RenderContext, stdout: *std.fs.File, allocator: std.mem.Allocator) !void {
+    try stdout.writeAll("-- Procedural Canvas (CanvasBuilder) --\n");
+    const width = 40;
+    const height = 10;
+    var builder = try zettui.dom.canvas.CanvasBuilder.init(allocator, width, height, ' ');
+    defer builder.deinit();
+
+    // Draw border
+    builder.drawRect(.{ .x = 0, .y = 0 }, width, height, '.');
+
+    // Draw X
+    builder.drawLine(.{ .x = 1, .y = 1 }, .{ .x = 38, .y = 8 }, 'x');
+    builder.drawLine(.{ .x = 1, .y = 8 }, .{ .x = 38, .y = 1 }, 'x');
+
+    // Draw Circle in center
+    builder.drawCircle(.{ .x = 20, .y = 4 }, 3, 'O');
+
+    // Draw some text
+    builder.writeText(.{ .x = 16, .y = 8 }, "ZETTUI");
+
+    var node_val = builder.toNode();
+    try node_val.render(ctx);
     try stdout.writeAll("\n");
 }
 

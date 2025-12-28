@@ -45,12 +45,12 @@ fn frameCharset(style: FrameBorderStyle) FrameCharset {
             .vertical = "\xE2\x94\x82", // │
         },
         .heavy => .{
-            .top_left = "\xE2\x95\x93", // ╓
-            .top_right = "\xE2\x95\x96", // ╖
-            .bottom_left = "\xE2\x95\x99", // ╙
-            .bottom_right = "\xE2\x95\x9C", // ╜
-            .horizontal = "\xE2\x95\xA1", // ╡
-            .vertical = "\xE2\x95\xA3", // ╣
+            .top_left = "\xE2\x94\x8F", // ┏
+            .top_right = "\xE2\x94\x93", // ┓
+            .bottom_left = "\xE2\x94\x97", // ┗
+            .bottom_right = "\xE2\x94\x9B", // ┛
+            .horizontal = "\xE2\x94\x81", // ━
+            .vertical = "\xE2\x94\x83", // ┃
         },
         .ascii => .{
             .top_left = "+",

@@ -92,6 +92,13 @@ fn renderRadioGroups(stdout: *std.fs.File, allocator: std.mem.Allocator) !void {
     });
     try radios.render();
     try stdout.writeAll("\n");
+
+    const framed = try zettui.component.widgets.radioGroupFramed(allocator, .{
+        .labels = &labels,
+        .selected_index = 2,
+    }, .{ .title = "Framed Group" });
+    try framed.render();
+    try stdout.writeAll("\n");
 }
 
 fn renderHeading(stdout: *std.fs.File, allocator: std.mem.Allocator, text: []const u8, attrs: zettui.dom.StyleAttributes) !void {

@@ -17,6 +17,8 @@ pub fn main() !void {
     try renderMultiSelectMenu(&stdout, a);
     try stdout.writeAll("\n");
     try renderDropdowns(&stdout, a);
+    try stdout.writeAll("\n");
+    try renderCollapsibles(&stdout, a);
 }
 
 fn renderMenuGallery(stdout: *std.fs.File, allocator: std.mem.Allocator) !void {
@@ -44,13 +46,13 @@ fn renderMenuGallery(stdout: *std.fs.File, allocator: std.mem.Allocator) !void {
 fn renderFramedMenus(stdout: *std.fs.File, allocator: std.mem.Allocator) !void {
     try renderHeading(stdout, allocator, "-- Menu in frame --", .{ .fg = 0x10B981 });
     const labels = [_][]const u8{ "File", "Edit", "View", "Help" };
-    const menu_component = try zettui.component.widgets.menu(allocator, .{
+
+    const framed = try zettui.component.widgets.menuFramed(allocator, .{
         .items = &labels,
         .selected_index = 1,
         .loop_navigation = true,
         .underline_gallery = true,
-    });
-    const framed = try zettui.component.widgets.window(allocator, menu_component, .{ .title = "framed vertical menu" });
+    }, .{ .title = "framed vertical menu" });
     try framed.render();
     try stdout.writeAll("\n");
 
@@ -100,6 +102,24 @@ fn renderDropdowns(stdout: *std.fs.File, allocator: std.mem.Allocator) !void {
         .is_open = true,
     }, dropdownCustomRenderer);
     try custom_dropdown.render();
+    try stdout.writeAll("\n");
+}
+
+fn renderCollapsibles(stdout: *std.fs.File, allocator: std.mem.Allocator) !void {
+    try renderHeading(stdout, allocator, "-- Collapsible section --", .{ .fg = 0x6EE7B7 });
+    const content = try zettui.component.widgets.label(allocator, "  Hidden content revealed\n  when expanded.");
+    const collapsible = try zettui.component.widgets.collapsible(allocator, content, .{
+        .label = "Details",
+        .expanded = false,
+    });
+    const expanded = try zettui.component.widgets.collapsible(allocator, content, .{
+        .label = "Details (open)",
+        .expanded = true,
+    });
+
+    try collapsible.render();
+    try stdout.writeAll("\n");
+    try expanded.render();
     try stdout.writeAll("\n");
 }
 

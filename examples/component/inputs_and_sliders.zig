@@ -96,6 +96,9 @@ fn renderInputs(stdout: *std.fs.File, allocator: std.mem.Allocator) !void {
         .placeholder_style = "(name)",
         .bordered = true,
     });
+    const framed = try zettui.component.widgets.textInputFramed(allocator, .{
+        .placeholder = "Search...",
+    }, .{ .title = "Search engine" });
     const password = try zettui.component.widgets.textInput(allocator, .{
         .placeholder = "Password",
         .is_password = true,
@@ -109,6 +112,8 @@ fn renderInputs(stdout: *std.fs.File, allocator: std.mem.Allocator) !void {
 
     try stdout.writeAll("Framed placeholder input:\n");
     try placeholder.render();
+    try stdout.writeAll("\n\nInput with outer frame:\n");
+    try framed.render();
     try stdout.writeAll("\n\nPassword input:\n");
     try password.render();
     try stdout.writeAll("\n\nMultiline input:\n");

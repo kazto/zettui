@@ -28,6 +28,7 @@ fn renderFrames(ctx: *zettui.dom.RenderContext, stdout: *std.fs.File, allocator:
         .{ .label = "Rounded border (emerald)", .border = .{ .charset = .rounded, .fg = 0x10B981 } },
         .{ .label = "Double border (magenta)", .border = .{ .charset = .double, .fg = 0xDB2777 } },
         .{ .label = "Heavy border (amber)", .border = .{ .charset = .heavy, .fg = 0xF59E0B } },
+        .{ .label = "ASCII border (white)", .border = .{ .charset = .ascii, .fg_palette = .white } },
     };
 
     for (samples) |sample| {
@@ -46,6 +47,12 @@ fn renderSeparators(ctx: *zettui.dom.RenderContext, stdout: *std.fs.File) !void 
     try zettui.dom.elements.separatorStyled(.horizontal, .plain, 32).render(ctx);
     try stdout.writeAll("\n");
     try zettui.dom.elements.separatorStyled(.horizontal, .dashed, 32).render(ctx);
+    try stdout.writeAll("\n");
+    try zettui.dom.elements.separatorStyled(.horizontal, .double, 32).render(ctx);
+    try stdout.writeAll("\n");
+    try zettui.dom.elements.separatorStyled(.horizontal, .dotted, 32).render(ctx);
+    try stdout.writeAll("\n");
+    try zettui.dom.elements.separatorStyled(.horizontal, .heavy, 32).render(ctx);
     try stdout.writeAll("\n");
     try stdout.writeAll("(vertical separator rendered via layout)\n");
 

@@ -382,6 +382,11 @@ pub fn textArea(allocator: std.mem.Allocator, opts: options.InputOptions) !base.
     return textInput(allocator, derived);
 }
 
+pub fn textInputFramed(allocator: std.mem.Allocator, opts: options.InputOptions, frame_opts: options.FrameOptions) !base.Component {
+    const inner = try textInput(allocator, opts);
+    return frameDecorator(allocator, inner, frame_opts);
+}
+
 fn inputRender(self: *base.ComponentBase) anyerror!void {
     const stdout = std.fs.File.stdout();
     const st = @as(*InputState, @ptrCast(@alignCast(self.user_data.?)));
@@ -1556,6 +1561,11 @@ pub fn menuCustom(allocator: std.mem.Allocator, opts: options.MenuOptions, rende
     var derived = opts;
     derived.custom_renderer = renderer_fn;
     return menu(allocator, derived);
+}
+
+pub fn menuFramed(allocator: std.mem.Allocator, opts: options.MenuOptions, frame_opts: options.FrameOptions) !base.Component {
+    const inner = try menu(allocator, opts);
+    return frameDecorator(allocator, inner, frame_opts);
 }
 
 fn menuRender(self: *base.ComponentBase) anyerror!void {

@@ -13,6 +13,8 @@ pub fn main() !void {
     try renderTabs(&stdout, a);
     try stdout.writeAll("\n");
     try renderSplit(&stdout, a);
+    try stdout.writeAll("\n");
+    try renderContainer(&stdout, a);
 }
 
 fn renderTabs(stdout: *std.fs.File, allocator: std.mem.Allocator) !void {
@@ -54,6 +56,16 @@ fn renderSplit(stdout: *std.fs.File, allocator: std.mem.Allocator) !void {
     try stdout.writeAll("\nClamp to max via custom event:\n");
     _ = split_component.onEvent(.{ .custom = .{ .tag = "split:clamp:max" } });
     try split_component.render();
+    try stdout.writeAll("\n");
+}
+
+fn renderContainer(stdout: *std.fs.File, allocator: std.mem.Allocator) !void {
+    try renderHeading(stdout, allocator, "-- Vertical container --", .{ .fg = 0xFCD34D });
+    const c1 = try zettui.component.widgets.label(allocator, "Item 1");
+    const c2 = try zettui.component.widgets.label(allocator, "Item 2");
+    const c3 = try zettui.component.widgets.label(allocator, "Item 3");
+    const container = try zettui.component.widgets.container(allocator, &[_]zettui.component.base.Component{ c1, c2, c3 });
+    try container.render();
     try stdout.writeAll("\n");
 }
 

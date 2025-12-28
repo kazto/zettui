@@ -13,6 +13,8 @@ pub fn main() !void {
     try renderGallery(&stdout, a);
     try stdout.writeAll("\n");
     try renderHoverAndSplit(&stdout, a);
+    try stdout.writeAll("\n");
+    try renderEventLogger(&stdout, a);
 }
 
 fn renderGallery(stdout: *std.fs.File, allocator: std.mem.Allocator) !void {
@@ -36,6 +38,63 @@ fn renderHoverAndSplit(stdout: *std.fs.File, allocator: std.mem.Allocator) !void
     });
     try split.render();
     try stdout.writeAll("\n");
+}
+
+fn renderEventLogger(stdout: *std.fs.File, allocator: std.mem.Allocator) !void {
+    try renderHeading(stdout, allocator, "-- Key press logger (custom component) --", .{ .fg = 0xF472B6 });
+    const logger = try makeEventLogger(allocator);
+    try stdout.writeAll("Initial state (no events):\n");
+    try logger.render();
+
+    try stdout.writeAll("\nInjecting 'A' key event:\n");
+    _ = logger.onEvent(.{ .key = .{ .codepoint = 'A' } });
+    try logger.render();
+
+    try stdout.writeAll("\nInjecting 'Enter' key event:\n");
+    _ = logger.onEvent(.{ .key = .{ .codepoint = '\n' } });
+    try logger.render();
+    try stdout.writeAll("\n");
+}
+
+const LoggerState = struct {
+    last_key: []const u8 = "none",
+};
+
+fn makeEventLogger(allocator: std.mem.Allocator) !zettui.component.base.Component {
+    const state = try allocator.create(LoggerState);
+    state.* = .{};
+
+    const base = try allocator.create(zettui.component.base.ComponentBase);
+    base.* = .{
+        .user_data = state,
+        .renderFn = loggerRender,
+        .eventFn = loggerEvent,
+        .children = &[_]zettui.component.base.Component{},
+    };
+    return .{ .base = base };
+}
+
+fn loggerRender(self: *zettui.component.base.ComponentBase) anyerror!void {
+    var stdout = std.fs.File.stdout();
+    const state = @as(*LoggerState, @ptrCast(@alignCast(self.user_data.?)));
+    var buf: [64]u8 = undefined;
+    const msg = try std.fmt.bufPrint(&buf, "[EventLogger] Last key: {s}", .{state.last_key});
+    try stdout.writeAll(msg);
+}
+
+fn loggerEvent(self: *zettui.component.base.ComponentBase, event: zettui.component.Event) bool {
+    const state = @as(*LoggerState, @ptrCast(@alignCast(self.user_data.?)));
+    switch (event) {
+        .key => |k| {
+            if (k.codepoint) |cp| {
+                if (cp == 'A') state.last_key = "A";
+                if (cp == '\n') state.last_key = "Enter";
+                return true;
+            }
+        },
+        else => {},
+    }
+    return false;
 }
 
 fn renderHeading(stdout: *std.fs.File, allocator: std.mem.Allocator, text: []const u8, attrs: zettui.dom.StyleAttributes) !void {

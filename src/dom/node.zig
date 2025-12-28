@@ -228,7 +228,21 @@ pub const Node = union(enum) {
             .focus => |fx| try fx.child.*.render(ctx),
             .flexbox => |fb| {
                 const kids = if (fb.owned_children) |oc| oc else fb.children;
-                for (kids) |child| try child.render(ctx);
+                for (kids, 0..) |child, idx| {
+                    if (idx > 0 and fb.config.gap > 0) {
+                        switch (fb.config.direction) {
+                            .row => {
+                                var k: usize = 0;
+                                while (k < fb.config.gap) : (k += 1) try ctxWrite(ctx, " ");
+                            },
+                            .column => {
+                                var k: usize = 0;
+                                while (k < fb.config.gap) : (k += 1) try ctxWrite(ctx, "\n");
+                            },
+                        }
+                    }
+                    try child.render(ctx);
+                }
             },
             .dbox => |db| {
                 const kids = if (db.owned_children) |oc| oc else db.children;

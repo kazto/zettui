@@ -39,6 +39,9 @@ pub fn main() !void {
     try stdout.writeAll("\nDouble-box + table demos:\n");
     try renderDboxAndTable(&stdout, a);
 
+    try stdout.writeAll("\nTree demo:\n");
+    try renderTree(&stdout, a);
+
     try stdout.writeAll("\nFocus + cursor decorators:\n");
     try showcaseFocusAndCursor(&screen, &stdout, a, Drawer.draw);
 }
@@ -161,6 +164,34 @@ fn renderDboxAndTable(stdout: *std.fs.File, allocator: std.mem.Allocator) !void 
     };
     const table = zettui.dom.elements.tableSelectable(&headers, &rows, 1, 0);
     try table.render(&ctx);
+    try stdout.writeAll("\n");
+    try table.render(&ctx);
+    try stdout.writeAll("\n");
+}
+
+fn renderTree(stdout: *std.fs.File, allocator: std.mem.Allocator) !void {
+    var ctx = makeSinkContext(stdout, allocator);
+
+    const roots = [_]zettui.dom.elements.TreeEntry{
+        .{
+            .label = "src",
+            .children = &[_]zettui.dom.elements.TreeEntry{
+                .{ .label = "dom", .status = .success },
+                .{ .label = "component", .status = .success },
+                .{ .label = "screen", .status = .installing },
+            },
+        },
+        .{
+            .label = "examples",
+            .children = &[_]zettui.dom.elements.TreeEntry{
+                .{ .label = "dom" },
+                .{ .label = "component" },
+            },
+        },
+        .{ .label = "build.zig", .status = .failure },
+    };
+    const tree = try zettui.dom.elements.treeOwned(allocator, &roots);
+    try tree.render(&ctx);
     try stdout.writeAll("\n");
 }
 
