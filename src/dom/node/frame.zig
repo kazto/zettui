@@ -91,6 +91,11 @@ pub fn renderFrame(self: anytype, ctx: *common.RenderContext) !void {
     const width: i32 = @intCast(child_req.min_width);
     const height: i32 = @intCast(child_req.min_height);
 
+    var style = common.StyleAttributes{};
+    style.fg = self.border.fg;
+    style.fg_palette = self.border.fg_palette;
+    try common.applyAnsiStyle(ctx, style);
+
     try common.frameWrite(ctx, ctx.origin_x, ctx.origin_y, charset.top_left);
     var top: i32 = 0;
     while (top < width) : (top += 1) try common.frameWrite(ctx, ctx.origin_x + 1 + top, ctx.origin_y, charset.horizontal);
@@ -106,6 +111,8 @@ pub fn renderFrame(self: anytype, ctx: *common.RenderContext) !void {
     var bottom: i32 = 0;
     while (bottom < width) : (bottom += 1) try common.frameWrite(ctx, ctx.origin_x + 1 + bottom, ctx.origin_y + 1 + height, charset.horizontal);
     try common.frameWrite(ctx, ctx.origin_x + 1 + width, ctx.origin_y + 1 + height, charset.bottom_right);
+
+    try common.applyAnsiStyle(ctx, .{});
 
     var child_ctx = ctx.*;
     child_ctx.origin_x += 1;
