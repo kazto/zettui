@@ -2117,6 +2117,7 @@ fn windowRender(self: *base.ComponentBase) anyerror!void {
     }
     try state.child.render();
     if (state.border) {
+        try stdout.writeAll("\n");
         try stdout.writeAll("+-----+\n");
     }
 }
@@ -2167,6 +2168,7 @@ fn frameDecoratorRender(self: *base.ComponentBase) anyerror!void {
         try stdout.writeAll("\n");
     }
     try state.child.render();
+    try stdout.writeAll("\n");
     try stdout.writeAll(&[_]u8{glyphs.corner});
     try writeRepeating(stdout, glyphs.horiz, min_width);
     try stdout.writeAll(&[_]u8{glyphs.corner});
