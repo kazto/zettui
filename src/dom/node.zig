@@ -960,7 +960,12 @@ fn renderFrameNode(f: Frame, ctx: *RenderContext) !void {
     };
     try f.child.*.render(&child_ctx);
 
+    var frame_style = common.StyleAttributes{};
+    frame_style.fg = f.border.fg;
+    frame_style.fg_palette = f.border.fg_palette;
+
     // Top border
+    try applyAnsiStyle(ctx, frame_style);
     try ctxWrite(ctx, charset.top_left);
     var col: usize = 0;
     while (col < inner_width) : (col += 1) try ctxWrite(ctx, charset.horizontal);
@@ -976,8 +981,12 @@ fn renderFrameNode(f: Frame, ctx: *RenderContext) !void {
         const line = buffer.items[line_start..line_end];
         line_start = if (line_end < buffer.items.len) line_end + 1 else buffer.items.len;
 
+        try applyAnsiStyle(ctx, frame_style);
         try ctxWrite(ctx, charset.vertical);
+        try ctxWrite(ctx, "\x1b[0m"); // Reset for content
         try ctxWrite(ctx, line);
+
+        try applyAnsiStyle(ctx, frame_style);
         if (line.len < inner_width) {
             var padding = inner_width - line.len;
             while (padding > 0) : (padding -= 1) try ctxWrite(ctx, " ");
@@ -987,6 +996,7 @@ fn renderFrameNode(f: Frame, ctx: *RenderContext) !void {
     }
 
     // Bottom border
+    try applyAnsiStyle(ctx, frame_style);
     try ctxWrite(ctx, charset.bottom_left);
     col = 0;
     while (col < inner_width) : (col += 1) try ctxWrite(ctx, charset.horizontal);
