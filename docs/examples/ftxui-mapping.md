@@ -99,27 +99,27 @@
 | `modal_dialog_custom.cpp` | `examples/component/dialogs_and_windows.zig` | Done — deploy summary modal with custom body. |
 | `collapsible.cpp` | `examples/component/dialogs_and_windows.zig` | Done — collapsible demo. |
 | `menu_in_frame_horizontal.cpp` | `examples/component/menus_and_dropdowns.zig` | Done — horizontal inline renderer in frame. |
-| `scrollbar.cpp` | `examples/component/navigation_and_scroll.zig` (`run:component-navigation`) | In progress — scrollbar events. |
+| `scrollbar.cpp` | `examples/component/navigation_and_scroll.zig` (`run:component-navigation`) | Done — scrollbar with event handling. |
 | `focus.cpp` | `examples/component/navigation_and_scroll.zig` | Done — hover wrapper focus/blur events shown. |
 | `focus_cursor.cpp` | `examples/component/navigation_and_scroll.zig` | Done — multiline input cursor navigation demoed. |
 | `selection.cpp` | `examples/component/navigation_and_scroll.zig` | Done — hover state and cursor movement illustrated. |
 | `composition.cpp` | `examples/component/composition.zig` (`run:component-composition`) | Done — renderer decorator. |
 | `renderer.cpp` | `examples/component/composition.zig` | Done — custom renderer sample. |
 | `maybe.cpp` | `examples/component/composition.zig` | Done — `maybe` toggling. |
-| `custom_loop.cpp` | `examples/screen/custom_loop.zig` (`run:screen-loop`) | In progress — manual loop. |
-| `nested_screen.cpp` | `examples/screen/nested_screen.zig` (`run:screen-nested`) | In progress — nested screens. |
-| `with_restored_io.cpp` | `examples/screen/with_restored_io.zig` (`run:screen-restored-io`) | In progress — raw mode restore. |
+| `custom_loop.cpp` | `examples/screen/custom_loop.zig` (`run:screen-loop`) | Done — manual fetch/handle loop with progress bar. |
+| `nested_screen.cpp` | `examples/screen/nested_screen.zig` (`run:screen-nested`) | Done — nested screen guard with depth tracking. |
+| `with_restored_io.cpp` | `examples/screen/with_restored_io.zig` (`run:screen-restored-io`) | Done — raw mode toggle with callback. |
 | `print_key_press.cpp` | `examples/screen/input_logger.zig` (`run:screen-input`) | Complete — raw key logger reinstated. |
 
 ## Screen / Integration Samples (non-component)
 
 | FTXUI sample | Zettui demo | Status / Notes |
 | --- | --- | --- |
-| `component/custom_loop.cpp` | `examples/screen/custom_loop.zig` | In progress — manual redraw loop. |
-| `component/with_restored_io.cpp` | `examples/screen/with_restored_io.zig` | In progress — raw mode toggle. |
-| `component/nested_screen.cpp` | `examples/screen/nested_screen.zig` | In progress — embedding child screens. |
-| `component/print_key_press.cpp` | `examples/screen/input_logger.zig` | Complete — input logger parity. |
-| `component/gallery.cpp` | `examples/integration/gallery.zig` | In progress — combined gallery. |
-| `component/homescreen.cpp` | `examples/integration/homescreen.zig` | In progress — sectioned dashboard. |
+| `component/custom_loop.cpp` | `examples/screen/custom_loop.zig` | Done — manual fetch/handle redraw loop with progress bar. |
+| `component/with_restored_io.cpp` | `examples/screen/with_restored_io.zig` | Done — raw mode toggle with callback. |
+| `component/nested_screen.cpp` | `examples/screen/nested_screen.zig` | Done — nested screen guard with depth tracking. |
+| `component/print_key_press.cpp` | `examples/screen/input_logger.zig` | Done — input logger parity. |
+| `component/gallery.cpp` | `examples/integration/gallery.zig` | Done — DOM + Component + Screen combined gallery. |
+| `component/homescreen.cpp` | `examples/integration/homescreen.zig` | Done — sectioned dashboard with package tree. |
 
 > 今後の変更: `Pending` 行を優先して実装し、完了後は `Status / Notes` 列を `Done` や詳細説明に更新してください。

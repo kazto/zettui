@@ -48,5 +48,6 @@
 
 ## 次ステップ
 
-- `docs/examples/ftxui-mapping.md` で `Pending` の行 (例: `dom/dbox.cpp`, `menu_in_frame_horizontal.cpp`, `screen_interactive` 系) を埋める。
-- 各デモ追加/更新時は README・`docs/examples/ftxui-mapping.md`・`docs/tasks.md` を同期させ、`zig build run:*` コマンドが有効であることを確認してください。
+- `docs/examples/ftxui-mapping.md` の全 FTXUI サンプルは Done 状態に到達しました。
+- 新しいデモ追加/更新時は README・`docs/examples/ftxui-mapping.md`・`docs/tasks.md` を同期させ、`zig build run:*` コマンドが有効であることを確認してください。
+- 追加の FTXUI 機能や拡張機能が必要な場合は、まず `ftxui-mapping.md` にエントリを追加してから実装を開始してください。

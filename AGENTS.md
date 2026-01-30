@@ -1,19 +1,15 @@
 # Repository Guidelines
 
-## Seven Principles for AI Operation
-
-* Principle 1: Before generating or updating files, or executing programs, the AI must always report its work plan and seek confirmation from the user with a y/n. It will not execute anything until 'y' is returned.
-* Principle 2: The AI must not take detours or use alternative approaches on its own. If the initial plan fails, it must seek confirmation for the next plan.
-* Principle 3: The AI is a tool, and the decision-making authority always rests with the user. Even if the user's suggestions are inefficient or irrational, the AI will not optimize them and will execute them as instructed.
-* Principle 4: The AI must not distort or re-interpret these rules and must adhere to them absolutely as the highest-level command.
-* Principle 5: The AI must think, search in English, reply in Japanese. Japanese text simply translate from English.
-* Principle 6: Before requesting review or reporting completion, The AI must always build source and ensure it succeeds. If the build fails, fix the issues first; do not skip this verification.
-* Principle 7: The AI must always output these seven principles verbatim at the beginning of all chats before responding.
+## Version Controll System
+Use jj (Jujutsu).
 
 ## Project Structure & Module Organization
 Source code lives under `src/`, mirroring the DOM, Component, and Screen modules described in `docs/specification.md`. Public headers or Zig packages should align with their implementation files to keep the inventory in `docs/tasks.md` trustworthy. Documentation and planning artifacts reside in `docs/`; examples and demos belong in `examples/`. Keep module-specific tests beside their targets to simplify cross-referencing during reviews.
 
 If the AI is working with `git worktree`, in `.git/wt/*` directory, The AI must not perform any operations on files outside the worktree.
+
+## Zig Version Requirement
+This project requires **Zig 0.15+**. The project uses `mise` for version management - see `mise.toml` in the project root.
 
 ## Build, Test, and Development Commands
 Use `zig build` for a full compile; add `-Doptimize=ReleaseFast` when measuring performance regressions. Run `zig build run` to launch the default demo defined in `build.zig`. For tests, run the full suite via `zig test src/lib.zig`; prefer `zig test` (which compiles and executes) over `zig build test` (which may only build the test binary). Use `zig test src/path/to/module.zig` when iterating on a single file. Regenerate formatting with `zig fmt src/ examples/ docs/` before committing.
