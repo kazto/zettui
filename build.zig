@@ -38,6 +38,7 @@ pub fn build(b: *std.Build) void {
         .{ .name = "component-navigation", .path = "examples/component/navigation_and_scroll.zig", .description = "Component navigation/scroll" },
         .{ .name = "component-composition", .path = "examples/component/composition.zig", .description = "Component renderer/maybe composition" },
         .{ .name = "component-dialogs", .path = "examples/component/dialogs_and_windows.zig", .description = "Component dialogs/windows" },
+        .{ .name = "component-toasts", .path = "examples/component/toasts.zig", .description = "Toast notification demo" },
         .{ .name = "screen-loop", .path = "examples/screen/custom_loop.zig", .description = "ScreenInteractive custom loop demo" },
         .{ .name = "screen-input", .path = "examples/screen/input_logger.zig", .description = "Screen input logger demo" },
         .{ .name = "screen-nested", .path = "examples/screen/nested_screen.zig", .description = "Nested Screen demo" },

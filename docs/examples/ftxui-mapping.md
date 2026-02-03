@@ -122,4 +122,10 @@
 | `component/gallery.cpp` | `examples/integration/gallery.zig` | Done — DOM + Component + Screen combined gallery. |
 | `component/homescreen.cpp` | `examples/integration/homescreen.zig` | Done — sectioned dashboard with package tree. |
 
+## Zettui Original Samples
+
+| Sample | Zettui demo | Notes |
+| --- | --- | --- |
+| (none) | `examples/component/toasts.zig` (`run:component-toasts`) | Dynamic toast notifications with slide-in/out animations, auto-dismiss, and stacking. |
+
 > 今後の変更: `Pending` 行を優先して実装し、完了後は `Status / Notes` 列を `Done` や詳細説明に更新してください。

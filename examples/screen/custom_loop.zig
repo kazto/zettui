@@ -1,11 +1,16 @@
 const std = @import("std");
 const zettui = @import("zettui");
 
+const Cursor = zettui.screen.Cursor;
+const ScreenCtl = zettui.screen.ScreenControl;
+
 pub fn main() !void {
     const gpa = std.heap.page_allocator;
     var stdout = std.fs.File.stdout();
-    try stdout.writeAll("=== ScreenInteractive custom loop ===\n");
-    try stdout.writeAll("Processing queued loop events with manual fetch/handle.\n\n");
+
+    // Hide cursor and clear screen
+    try stdout.writeAll(Cursor.hide);
+    try stdout.writeAll(ScreenCtl.clearAndHome);
 
     var interactive = try zettui.screen.ScreenInteractive.init(gpa, 46, 9);
     defer interactive.deinit();
@@ -30,6 +35,8 @@ pub fn main() !void {
         fn fetch(_: *zettui.screen.ScreenInteractive, ctx: ?*anyopaque) anyerror!?zettui.screen.LoopEvent {
             const st = @as(*State, @ptrCast(@alignCast(ctx.?)));
             if (st.cursor >= st.events.len) return null;
+            // Add delay between frames for visible animation
+            std.Thread.sleep(200 * std.time.ns_per_ms);
             defer st.cursor += 1;
             return st.events[st.cursor];
         }
@@ -81,7 +88,12 @@ pub fn main() !void {
 
     var loop = interactive.customLoop(Fetcher.fetch, Handler.handle, @as(?*anyopaque, @ptrCast(&state)));
     try loop.run();
-    try stdout.writeAll("\nCustom loop finished.\n");
+
+    // Show cursor and move below the rendered area
+    try stdout.writeAll(Cursor.show);
+    var pos_buf: [32]u8 = undefined;
+    try stdout.writeAll(Cursor.moveTo(&pos_buf, 12, 1));
+    try stdout.writeAll("Custom loop finished.\n");
 }
 
 const State = struct {
@@ -98,6 +110,9 @@ const State = struct {
 };
 
 fn render(interactive: *zettui.screen.ScreenInteractive, state: *State) !void {
+    // Move cursor to home position for in-place update
+    try state.stdout.writeAll(Cursor.home);
+
     var screen = interactive.screen();
     screen.clear(.{ .glyph = " ", .fg = 0xE5E7EB, .bg = 0x111827 });
 
@@ -116,6 +131,9 @@ fn render(interactive: *zettui.screen.ScreenInteractive, state: *State) !void {
     const dim_msg = try std.fmt.bufPrint(&buf, "target size: {d}x{d}", .{ state.dim.width, state.dim.height });
     screen.drawString(2, 6, dim_msg);
 
+    // Show frame count for visual feedback
+    const frame_msg = try std.fmt.bufPrint(&buf, "frame: {d}/{d}", .{ state.cursor, state.events.len });
+    screen.drawString(2, 8, frame_msg);
+
     try screen.present(state.stdout.*);
-    try state.stdout.writeAll("\n");
 }

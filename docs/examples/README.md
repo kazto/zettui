@@ -36,6 +36,7 @@
 - `run:component-navigation` (`examples/component/navigation_and_scroll.zig`): メニューとスクロールバーのナビゲーション挙動。
 - `run:component-composition` (`examples/component/composition.zig`): `renderer`/`maybe` デコレータ。
 - `run:component-dialogs` (`examples/component/dialogs_and_windows.zig`): ウィンドウ/モーダル/コラプシブル。
+- `run:component-toasts` (`examples/component/toasts.zig`): トースト通知デモ (スライドアニメーション付き)。
 
 ## 実装済み Screen / Integration デモ
 

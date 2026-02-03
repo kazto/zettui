@@ -21,6 +21,10 @@ pub const GradientStop = color.GradientStop;
 
 pub const TerminalInfo = terminal.TerminalInfo;
 pub const Terminal = terminal.Terminal;
+pub const TerminalWriter = terminal.TerminalWriter;
+pub const Cursor = terminal.Cursor;
+pub const ScreenControl = terminal.Screen;
+pub const Style = terminal.Style;
 
 pub const utf8 = strings;
 
